@@ -5,25 +5,30 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// Material Design 3 inspired colors
+const tintColorLight = '#0a7ea4'; // Primary blue
+const tintColorDark = '#4FC3F7'; // Light blue for dark mode
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: '#1C1B1F', // Material Design 3 on-surface
+    background: '#FFFFFF',
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: '#49454F', // Material Design 3 on-surface-variant
+    tabIconDefault: '#79747E', // Material Design 3 outline
     tabIconSelected: tintColorLight,
+    tabBarBackground: '#FFFFFF',
+    tabBarBorder: 'rgba(0, 0, 0, 0.08)',
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: '#E6E1E5', // Material Design 3 on-surface
+    background: '#1C1B1F',
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: '#CAC4D0', // Material Design 3 on-surface-variant
+    tabIconDefault: '#938F99', // Material Design 3 outline
     tabIconSelected: tintColorDark,
+    tabBarBackground: '#1E1E1E',
+    tabBarBorder: 'rgba(255, 255, 255, 0.1)',
   },
 };
 
