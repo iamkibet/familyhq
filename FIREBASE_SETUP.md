@@ -113,6 +113,59 @@ Copy that EXACT URI and add it to Google Cloud Console.
 4. Choose a location close to you
 5. Click **Enable**
 
+## Step 5.5: Enable Firebase Storage
+
+1. In Firebase Console, go to **Storage**
+2. Click **Get started**
+3. Start in **test mode** (for development)
+4. Choose a location (should match your Firestore location)
+5. Click **Next** then **Done**
+
+## Step 5.6: Set Firebase Storage Security Rules
+
+1. In Firebase Console, go to **Storage** > **Rules**
+2. Replace the rules with the contents of `storage.rules` file in your project
+3. Or copy these rules:
+
+```javascript
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to get user's familyId from Firestore
+    function getUserFamilyId() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.familyId;
+    }
+    
+    // Helper function to check if user belongs to a family
+    function belongsToFamily(familyId) {
+      return request.auth != null && 
+        getUserFamilyId() != null && 
+        getUserFamilyId() != '' &&
+        familyId != null &&
+        getUserFamilyId() == familyId;
+    }
+    
+    // Family hero images - allow authenticated users in the family to upload/read/delete
+    match /families/{familyId}/hero/{imageId} {
+      // Allow read if user belongs to the family
+      allow read: if request.auth != null && belongsToFamily(familyId);
+      
+      // Allow write (upload/delete) if user belongs to the family
+      allow write: if request.auth != null && belongsToFamily(familyId) &&
+        request.resource.size < 10 * 1024 * 1024 && // 10MB limit
+        request.resource.contentType.matches('image/.*');
+    }
+    
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+```
+
+4. Click **Publish**
+
 ## Step 6: Set Firestore Security Rules
 
 1. In Firebase Console, go to **Firestore Database** > **Rules**

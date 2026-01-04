@@ -20,13 +20,16 @@ import { useCurrencyStore, CURRENCIES } from '@/src/stores/currencyStore';
 import Constants from 'expo-constants';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getNotificationPermissionStatus, requestNotificationPermissions } from '@/src/services/notificationService';
+import * as storageService from '@/src/services/storageService';
+import * as familyService from '@/src/services/familyService';
+import { ActivityIndicator, Image } from 'react-native';
 
 type NotificationPermission = 'granted' | 'denied' | 'undetermined';
 
 export default function SettingsScreen() {
   const colorScheme = useThemeScheme();
   const isDark = colorScheme === 'dark';
-  const { userData, family, signOut, createFamily, joinFamily, loading: authLoading } = useAuthStore();
+  const { userData, family, signOut, createFamily, joinFamily, loadFamilyData, loading: authLoading } = useAuthStore();
   const { colorScheme: themePreference, setColorScheme, initializeTheme } = useThemeStore();
   const { privacySettings, loadPrivacySettings, updatePrivacySettings } = useSettingsStore();
   const { currency, setCurrency, initializeCurrency } = useCurrencyStore();
@@ -38,6 +41,7 @@ export default function SettingsScreen() {
   const [familyModalMode, setFamilyModalMode] = useState<'create' | 'join' | null>(null);
   const [familyName, setFamilyName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
 
   useEffect(() => {
     initializeTheme();
@@ -133,6 +137,82 @@ export default function SettingsScreen() {
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to join family');
     }
+  };
+
+  const handleUploadHeroImage = async () => {
+    if (!family?.id) {
+      Alert.alert('Error', 'No family found');
+      return;
+    }
+
+    try {
+      setUploadingHeroImage(true);
+      
+      // Pick image
+      const imageUri = await storageService.pickImage();
+      if (!imageUri) {
+        setUploadingHeroImage(false);
+        return;
+      }
+
+      // Delete old image if exists
+      if (family.heroImageUrl) {
+        await storageService.deleteFamilyHeroImage(family.id, family.heroImageUrl);
+      }
+
+      // Save new image to local storage
+      const savedImageUri = await storageService.saveFamilyHeroImage(family.id, imageUri);
+      
+      // Update family document with local URI
+      await familyService.updateFamily(family.id, { heroImageUrl: savedImageUri });
+      
+      // Reload family data to update the UI
+      await loadFamilyData();
+      
+      Alert.alert('Success', 'Hero image uploaded successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to upload hero image');
+    } finally {
+      setUploadingHeroImage(false);
+    }
+  };
+
+  const handleRemoveHeroImage = async () => {
+    if (!family?.id || !family.heroImageUrl) {
+      return;
+    }
+
+    Alert.alert(
+      'Remove Hero Image',
+      'Are you sure you want to remove the hero image?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setUploadingHeroImage(true);
+              
+              // Delete image from local storage
+              await storageService.deleteFamilyHeroImage(family.id, family.heroImageUrl!);
+              
+              // Update family document
+              await familyService.updateFamily(family.id, { heroImageUrl: undefined });
+              
+              // Reload family data to update the UI
+              await loadFamilyData();
+              
+              Alert.alert('Success', 'Hero image removed successfully!');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to remove hero image');
+            } finally {
+              setUploadingHeroImage(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleSignOut = () => {
@@ -265,13 +345,20 @@ export default function SettingsScreen() {
     <ScrollView
       style={[styles.container, isDark && styles.containerDark]}
       contentContainerStyle={styles.contentContainer}>
-      {/* Profile Section */}
+      {/* Profile & Family Section */}
       <View style={[styles.profileSection, isDark && styles.profileSectionDark]}>
-        <View style={[styles.avatar, isDark && styles.avatarDark]}>
-          <Text style={styles.avatarText}>
-            {userData?.name?.charAt(0).toUpperCase() || 'U'}
-          </Text>
-        </View>
+        {family?.heroImageUrl ? (
+          <Image
+            source={{ uri: storageService.getImageUri(family.heroImageUrl) }}
+            style={[styles.avatar, styles.avatarImage]}
+          />
+        ) : (
+          <View style={[styles.avatar, isDark && styles.avatarDark]}>
+            <Text style={styles.avatarText}>
+              {userData?.name?.charAt(0).toUpperCase() || 'U'}
+            </Text>
+          </View>
+        )}
         <Text style={[styles.profileName, isDark && styles.profileNameDark]}>
           {userData?.name || 'User'}
         </Text>
@@ -279,12 +366,42 @@ export default function SettingsScreen() {
           {userData?.email || ''}
         </Text>
         {family && (
-          <View style={[styles.familyBadge, isDark && styles.familyBadgeDark]}>
-            <IconSymbol name="person.2.fill" size={14} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-            <Text style={[styles.familyBadgeText, isDark && styles.familyBadgeTextDark]}>
-              {family.name}
-            </Text>
-          </View>
+          <>
+            <View style={[styles.familyBadge, isDark && styles.familyBadgeDark]}>
+              <IconSymbol name="person.2.fill" size={14} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+              <Text style={[styles.familyBadgeText, isDark && styles.familyBadgeTextDark]}>
+                {family.name}
+              </Text>
+            </View>
+            
+            {/* Hero Image Upload */}
+            <View style={styles.profileActions}>
+              <TouchableOpacity
+                style={[styles.profileActionButton, isDark && styles.profileActionButtonDark]}
+                onPress={handleUploadHeroImage}
+                activeOpacity={0.7}>
+                {uploadingHeroImage ? (
+                  <ActivityIndicator size="small" color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                ) : (
+                  <IconSymbol name="photo.fill" size={18} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                )}
+                <Text style={[styles.profileActionText, isDark && styles.profileActionTextDark]}>
+                  {family.heroImageUrl ? 'Change Hero Image' : 'Upload Hero Image'}
+                </Text>
+              </TouchableOpacity>
+              {family.heroImageUrl && (
+                <TouchableOpacity
+                  style={[styles.profileActionButton, styles.profileActionButtonRemove, isDark && styles.profileActionButtonRemoveDark]}
+                  onPress={handleRemoveHeroImage}
+                  activeOpacity={0.7}>
+                  <IconSymbol name="trash.fill" size={18} color="#F44336" />
+                  <Text style={[styles.profileActionText, styles.profileActionTextRemove]}>
+                    Remove Hero Image
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
         )}
       </View>
 
@@ -314,6 +431,26 @@ export default function SettingsScreen() {
           />
         </View>
       </SettingSection>
+
+      {/* Family Section */}
+      {family && (
+        <SettingSection title="Family">
+          <SettingItem
+            icon="key.fill"
+            title="Invite Code"
+            subtitle={family.inviteCode}
+            onPress={async () => {
+              try {
+                await Clipboard.setStringAsync(family.inviteCode);
+                Alert.alert('Copied!', 'Invite code copied to clipboard');
+              } catch (error) {
+                Alert.alert('Error', 'Failed to copy invite code');
+              }
+            }}
+            showArrow={false}
+          />
+        </SettingSection>
+      )}
 
       {/* Preferences Section */}
       <SettingSection title="Preferences">
@@ -773,6 +910,46 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 100,
   },
+  profileActions: {
+    marginTop: 20,
+    gap: 12,
+    width: '100%',
+  },
+  profileActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  profileActionButtonDark: {
+    backgroundColor: '#2C2C2C',
+    borderColor: '#3C3C3C',
+  },
+  profileActionButtonRemove: {
+    backgroundColor: '#FFF5F5',
+    borderColor: '#FFE0E0',
+  },
+  profileActionButtonRemoveDark: {
+    backgroundColor: '#3C2C2C',
+    borderColor: '#4C3C3C',
+  },
+  profileActionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0a7ea4',
+  },
+  profileActionTextDark: {
+    color: '#4FC3F7',
+  },
+  profileActionTextRemove: {
+    color: '#F44336',
+  },
   profileSection: {
     alignItems: 'center',
     padding: 32,
@@ -793,6 +970,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  avatarImage: {
+    backgroundColor: 'transparent',
+    resizeMode: 'cover',
   },
   avatarDark: {
     backgroundColor: '#4FC3F7',

@@ -33,6 +33,7 @@ import { BudgetCard } from '@/src/components/dashboard/BudgetCard';
 import { ShoppingCard } from '@/src/components/dashboard/ShoppingCard';
 import { TasksCard } from '@/src/components/dashboard/TasksCard';
 import { EventsCard } from '@/src/components/dashboard/EventsCard';
+import { HeroSection } from '@/src/components/dashboard/HeroSection';
 
 export default function HomeScreen() {
   useFamilyData(); // Initialize all family data stores
@@ -417,40 +418,8 @@ export default function HomeScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        {/* Header Section with Avatar */}
-        <View style={[styles.header, isDark && styles.headerDark]}>
-          <View style={styles.headerContent}>
-            <View style={styles.headerLeft}>
-              <View style={[styles.avatar, isDark && styles.avatarDark]}>
-                <Text style={styles.avatarText}>
-                  {userData?.name?.charAt(0).toUpperCase() || 'F'}
-                </Text>
-              </View>
-              <View style={styles.headerText}>
-                <Text style={[styles.greeting, isDark && styles.greetingDark]}>
-                  Hi {userData?.name?.split(' ')[0] || 'Family'},
-                </Text>
-                <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-                  here's your family update
-                </Text>
-                {family && (
-                  <View style={styles.familyBadge}>
-                    <IconSymbol name="house.fill" size={12} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-                    <Text style={[styles.familyName, isDark && styles.familyNameDark]}>{family.name}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.addFamilyButton, isDark && styles.addFamilyButtonDark]}
-              onPress={() => {
-                setFamilyModalMode(null);
-                setFamilyModalVisible(true);
-              }}>
-              <IconSymbol name="person.2.badge.plus.fill" size={20} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Hero Section */}
+        <HeroSection family={family} />
 
         {/* Dashboard Carousel */}
         <DashboardCarousel>

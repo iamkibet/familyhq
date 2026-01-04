@@ -13,6 +13,7 @@ export interface Family {
   name: string;
   createdAt: Timestamp;
   inviteCode: string;
+  heroImageUrl?: string; // URL to the hero image for the dashboard
 }
 
 export interface ShoppingList {

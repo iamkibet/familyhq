@@ -105,3 +105,13 @@ export async function getFamilyMembers(familyId: string): Promise<User[]> {
   return userDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() } as User));
 }
 
+/**
+ * Update family
+ */
+export async function updateFamily(
+  familyId: string,
+  updates: Partial<Omit<Family, 'id' | 'createdAt' | 'inviteCode'>>
+): Promise<void> {
+  await updateDoc(doc(db, COLLECTIONS.FAMILIES, familyId), updates);
+}
+
