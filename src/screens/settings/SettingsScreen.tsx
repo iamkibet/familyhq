@@ -177,44 +177,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleRemoveHeroImage = async () => {
-    if (!family?.id || !family.heroImageUrl) {
-      return;
-    }
-
-    Alert.alert(
-      'Remove Hero Image',
-      'Are you sure you want to remove the hero image?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setUploadingHeroImage(true);
-              
-              // Delete image from local storage
-              await storageService.deleteFamilyHeroImage(family.id, family.heroImageUrl!);
-              
-              // Update family document
-              await familyService.updateFamily(family.id, { heroImageUrl: undefined });
-              
-              // Reload family data to update the UI
-              await loadFamilyData();
-              
-              Alert.alert('Success', 'Hero image removed successfully!');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to remove hero image');
-            } finally {
-              setUploadingHeroImage(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const handleSignOut = () => {
     Alert.alert(
       'Sign Out',
@@ -347,62 +309,52 @@ export default function SettingsScreen() {
       contentContainerStyle={styles.contentContainer}>
       {/* Profile & Family Section */}
       <View style={[styles.profileSection, isDark && styles.profileSectionDark]}>
-        {family?.heroImageUrl ? (
-          <Image
-            source={{ uri: storageService.getImageUri(family.heroImageUrl) }}
-            style={[styles.avatar, styles.avatarImage]}
-          />
-        ) : (
-          <View style={[styles.avatar, isDark && styles.avatarDark]}>
-            <Text style={styles.avatarText}>
-              {userData?.name?.charAt(0).toUpperCase() || 'U'}
-            </Text>
-          </View>
-        )}
-        <Text style={[styles.profileName, isDark && styles.profileNameDark]}>
-          {userData?.name || 'User'}
-        </Text>
-        <Text style={[styles.profileEmail, isDark && styles.profileEmailDark]}>
-          {userData?.email || ''}
-        </Text>
-        {family && (
-          <>
-            <View style={[styles.familyBadge, isDark && styles.familyBadgeDark]}>
-              <IconSymbol name="person.2.fill" size={14} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-              <Text style={[styles.familyBadgeText, isDark && styles.familyBadgeTextDark]}>
-                {family.name}
-              </Text>
-            </View>
-            
-            {/* Hero Image Upload */}
-            <View style={styles.profileActions}>
-              <TouchableOpacity
-                style={[styles.profileActionButton, isDark && styles.profileActionButtonDark]}
-                onPress={handleUploadHeroImage}
-                activeOpacity={0.7}>
-                {uploadingHeroImage ? (
-                  <ActivityIndicator size="small" color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-                ) : (
-                  <IconSymbol name="photo.fill" size={18} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-                )}
-                <Text style={[styles.profileActionText, isDark && styles.profileActionTextDark]}>
-                  {family.heroImageUrl ? 'Change Hero Image' : 'Upload Hero Image'}
+        <View style={styles.profileHeader}>
+          <TouchableOpacity
+            onPress={family ? handleUploadHeroImage : undefined}
+            disabled={!family || uploadingHeroImage}
+            activeOpacity={0.8}
+            style={styles.avatarContainer}>
+            {family?.heroImageUrl ? (
+              <Image
+                source={{ uri: storageService.getImageUri(family.heroImageUrl) }}
+                style={[styles.avatar, styles.avatarImage]}
+              />
+            ) : (
+              <View style={[styles.avatar, isDark && styles.avatarDark]}>
+                <Text style={styles.avatarText}>
+                  {userData?.name?.charAt(0).toUpperCase() || 'U'}
                 </Text>
-              </TouchableOpacity>
-              {family.heroImageUrl && (
-                <TouchableOpacity
-                  style={[styles.profileActionButton, styles.profileActionButtonRemove, isDark && styles.profileActionButtonRemoveDark]}
-                  onPress={handleRemoveHeroImage}
-                  activeOpacity={0.7}>
-                  <IconSymbol name="trash.fill" size={18} color="#F44336" />
-                  <Text style={[styles.profileActionText, styles.profileActionTextRemove]}>
-                    Remove Hero Image
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </>
-        )}
+              </View>
+            )}
+            {family && (
+              <View style={[styles.avatarEditBadge, isDark && styles.avatarEditBadgeDark]}>
+                {uploadingHeroImage ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <IconSymbol name="camera.fill" size={14} color="#FFFFFF" />
+                )}
+              </View>
+            )}
+          </TouchableOpacity>
+          
+          <View style={styles.profileInfo}>
+            <Text style={[styles.profileName, isDark && styles.profileNameDark]}>
+              {userData?.name || 'User'}
+            </Text>
+            <Text style={[styles.profileEmail, isDark && styles.profileEmailDark]}>
+              {userData?.email || ''}
+            </Text>
+            {family && (
+              <View style={[styles.familyBadge, isDark && styles.familyBadgeDark]}>
+                <IconSymbol name="person.2.fill" size={12} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                <Text style={[styles.familyBadgeText, isDark && styles.familyBadgeTextDark]}>
+                  {family.name}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
       </View>
 
       {/* Appearance Section */}
@@ -910,49 +862,8 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 100,
   },
-  profileActions: {
-    marginTop: 20,
-    gap: 12,
-    width: '100%',
-  },
-  profileActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  profileActionButtonDark: {
-    backgroundColor: '#2C2C2C',
-    borderColor: '#3C3C3C',
-  },
-  profileActionButtonRemove: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FFE0E0',
-  },
-  profileActionButtonRemoveDark: {
-    backgroundColor: '#3C2C2C',
-    borderColor: '#4C3C3C',
-  },
-  profileActionText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0a7ea4',
-  },
-  profileActionTextDark: {
-    color: '#4FC3F7',
-  },
-  profileActionTextRemove: {
-    color: '#F44336',
-  },
   profileSection: {
-    alignItems: 'center',
-    padding: 32,
+    padding: 24,
     paddingTop: 60,
     backgroundColor: '#F8F8F8',
     borderBottomWidth: 1,
@@ -962,14 +873,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#2C2C2C',
     borderBottomColor: '#3C3C3C',
   },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 20,
+  },
+  avatarContainer: {
+    position: 'relative',
+  },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     backgroundColor: '#0a7ea4',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
   },
   avatarImage: {
     backgroundColor: 'transparent',
@@ -979,23 +897,52 @@ const styles = StyleSheet.create({
     backgroundColor: '#4FC3F7',
   },
   avatarText: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#0a7ea4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  avatarEditBadgeDark: {
+    backgroundColor: '#4FC3F7',
+    borderColor: '#2C2C2C',
+  },
+  profileInfo: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingTop: 8,
+  },
   profileName: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
     color: '#111',
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: -0.3,
   },
   profileNameDark: {
     color: '#E6E1E5',
   },
   profileEmail: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#666',
     marginBottom: 12,
+    letterSpacing: 0.2,
   },
   profileEmailDark: {
     color: '#938F99',
@@ -1004,16 +951,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: '#E3F2FD',
-    borderRadius: 16,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
   },
   familyBadgeDark: {
     backgroundColor: '#1E3A5F',
   },
   familyBadgeText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: '#0a7ea4',
   },
