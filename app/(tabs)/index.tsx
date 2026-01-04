@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,12 +21,18 @@ import { useBudgetStore } from '@/src/stores/budgetStore';
 import { useDirectExpenseStore } from '@/src/stores/directExpenseStore';
 import { useFamilyData } from '@/src/hooks/useFamilyData';
 import { useFamilyMembers } from '@/src/hooks/useFamilyMembers';
-import { formatDate, formatDateForInput, formatRelativeTime, isToday, isPast } from '@/src/utils';
+import { formatDate, formatDateForInput, formatRelativeTime, isToday, isPast, TimePeriod, isWithinTimePeriod, isBudgetActive, isDateInRange } from '@/src/utils';
 import { useFormatCurrency } from '@/src/hooks/use-format-currency';
 import { FamilyEvent, ShoppingItem, Task, User, BudgetCategory, DirectExpense } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeScheme } from '@/hooks/use-theme-scheme';
 import { PieChart } from '@/src/components/PieChart';
+import { TimePeriodSelector } from '@/src/components/TimePeriodSelector';
+import { DashboardCarousel } from '@/src/components/DashboardCarousel';
+import { BudgetCard } from '@/src/components/dashboard/BudgetCard';
+import { ShoppingCard } from '@/src/components/dashboard/ShoppingCard';
+import { TasksCard } from '@/src/components/dashboard/TasksCard';
+import { EventsCard } from '@/src/components/dashboard/EventsCard';
 
 export default function HomeScreen() {
   useFamilyData(); // Initialize all family data stores
@@ -46,10 +52,23 @@ export default function HomeScreen() {
       clearExpenses();
     };
   }, [family?.id]);
-  const { lists: shoppingLists, items: allShoppingItems } = useShoppingStore();
+  const { lists: shoppingLists, items: allShoppingItems, subscribeToLists, subscribeToAllItems } = useShoppingStore();
+  
+  // Subscribe to shopping lists and all items for budget calculations
+  useEffect(() => {
+    if (family?.id) {
+      subscribeToLists(family.id);
+    }
+  }, [family?.id, subscribeToLists]);
+  
+  useEffect(() => {
+    if (family?.id && shoppingLists.length > 0) {
+      subscribeToAllItems(family.id);
+    }
+  }, [family?.id, shoppingLists.length, subscribeToAllItems]);
   const { tasks, addTask } = useTaskStore();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendarStore();
-  const { categories: budgetCategories } = useBudgetStore();
+  const { categories: budgetCategories, activePeriod } = useBudgetStore();
   const { expenses: directExpenses, subscribeToExpenses, clearExpenses } = useDirectExpenseStore();
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
@@ -71,6 +90,7 @@ export default function HomeScreen() {
     assignedTo: userData?.id || '',
     dueDate: formatDateForInput(new Date()),
   });
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('thisMonth');
 
   const activeTasks = tasks.filter((t) => !t.completed).length;
   const completedTasks = tasks.filter((t) => t.completed).length;
@@ -84,25 +104,145 @@ export default function HomeScreen() {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .slice(0, 5);
 
-  // Calculate budget statistics
-  const totalBudgetLimit = budgetCategories.reduce((sum, cat) => sum + cat.limit, 0);
-  const totalBudgetSpent = budgetCategories.reduce((sum, cat) => sum + cat.spent, 0);
-  const totalBudgetRemaining = totalBudgetLimit - totalBudgetSpent;
-  const budgetPercentageUsed = totalBudgetLimit > 0 ? (totalBudgetSpent / totalBudgetLimit) * 100 : 0;
+  // Helper to get expense date as string (YYYY-MM-DD)
+  const getExpenseDate = (timestamp: { toMillis: () => number } | Date | string | null | undefined): string | null => {
+    if (!timestamp) return null;
+    try {
+      let date: Date;
+      if (typeof timestamp === 'string') {
+        date = new Date(timestamp);
+      } else if (timestamp instanceof Date) {
+        date = timestamp;
+      } else if (timestamp && typeof timestamp.toMillis === 'function') {
+        date = new Date(timestamp.toMillis());
+      } else {
+        return null;
+      }
+      if (isNaN(date.getTime())) return null;
+      return formatDateForInput(date);
+    } catch {
+      return null;
+    }
+  };
 
-  // Prepare pie chart data for budget categories
-  const pieChartData = budgetCategories
-    .filter((cat) => cat.spent > 0)
-    .map((cat, index) => {
-      const colors = isDark
-        ? ['#4FC3F7', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC', '#26C6DA', '#FFCA28']
-        : ['#0a7ea4', '#4CAF50', '#FF9800', '#F44336', '#9C27B0', '#00BCD4', '#FFC107'];
-      return {
-        name: cat.name,
-        value: cat.spent,
-        color: colors[index % colors.length],
-      };
+  // Memoize active budgets - only show categories if there's an active period
+  const activeBudgets = useMemo(() => {
+    if (!activePeriod) return [];
+    // Ensure categories belong to the active period
+    return budgetCategories.filter(cat => cat.budgetPeriodId === activePeriod.id);
+  }, [activePeriod, budgetCategories]);
+
+  // Memoize category spent calculation to prevent recalculation issues
+  const calculateCategorySpent = useCallback((category: BudgetCategory): number => {
+    if (!activePeriod) return 0;
+    
+    // Get expenses that match this category name and fall within the budget period
+    const categoryDirectExpenses = directExpenses.filter((exp) => {
+      if (exp.budgetCategoryName !== category.name) return false;
+      const expenseDate = getExpenseDate(exp.createdAt);
+      if (!expenseDate) return false;
+      return isDateInRange(expenseDate, activePeriod.startDate, activePeriod.endDate);
     });
+
+    const categoryShoppingItems = allShoppingItems.filter((item) => {
+      if (!item.isBought || item.budgetCategoryName !== category.name) return false;
+      const itemDate = getExpenseDate(item.createdAt);
+      if (!itemDate) return false;
+      return isDateInRange(itemDate, activePeriod.startDate, activePeriod.endDate);
+    });
+
+    const directExpenseTotal = categoryDirectExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    const shoppingItemTotal = categoryShoppingItems.reduce(
+      (sum, item) => sum + ((item.estimatedPrice || 0) * (item.quantity || 0)),
+      0
+    );
+
+    const total = directExpenseTotal + shoppingItemTotal;
+    
+    // Debug logging for troubleshooting
+    if (activeBudgets.length > 0 && category === activeBudgets[0]) {
+      console.log('Budget Calculation Debug:', {
+        categoryName: category.name,
+        periodDates: `${activePeriod.startDate} - ${activePeriod.endDate}`,
+        allDirectExpenses: directExpenses.length,
+        allShoppingItems: allShoppingItems.length,
+        boughtItems: allShoppingItems.filter(i => i.isBought).length,
+        categoryDirectExpensesCount: categoryDirectExpenses.length,
+        categoryShoppingItemsCount: categoryShoppingItems.length,
+        directExpenseTotal,
+        shoppingItemTotal,
+        total,
+        sampleExpense: directExpenses[0] ? {
+          name: directExpenses[0].budgetCategoryName,
+          amount: directExpenses[0].amount,
+          date: getExpenseDate(directExpenses[0].createdAt),
+        } : null,
+        sampleItem: allShoppingItems.find(i => i.isBought && i.budgetCategoryName) ? {
+          name: allShoppingItems.find(i => i.isBought && i.budgetCategoryName)?.budgetCategoryName,
+          price: allShoppingItems.find(i => i.isBought && i.budgetCategoryName)?.estimatedPrice,
+          date: getExpenseDate(allShoppingItems.find(i => i.isBought && i.budgetCategoryName)?.createdAt),
+        } : null,
+      });
+    }
+
+    return total;
+  }, [activePeriod, directExpenses, allShoppingItems, activeBudgets]);
+
+  // Memoize budget statistics to prevent recalculation on every render
+  const budgetStats = useMemo(() => {
+    if (!activePeriod || activeBudgets.length === 0) {
+      return {
+        totalLimit: 0,
+        totalSpent: 0,
+        totalRemaining: 0,
+        percentageUsed: 0,
+        pieChartData: [],
+      };
+    }
+
+    const totalLimit = activeBudgets.reduce((sum, cat) => sum + cat.limit, 0);
+    const totalSpent = activeBudgets.reduce(
+      (sum, cat) => sum + calculateCategorySpent(cat),
+      0
+    );
+    const totalRemaining = totalLimit - totalSpent;
+    const percentageUsed = totalLimit > 0 ? (totalSpent / totalLimit) * 100 : 0;
+
+    // Prepare pie chart data
+    const pieChartData = activeBudgets
+      .map((cat) => {
+        const spent = calculateCategorySpent(cat);
+        return { category: cat, spent };
+      })
+      .filter(({ spent }) => spent > 0)
+      .map(({ category, spent }, index) => {
+        const colors = isDark
+          ? ['#4FC3F7', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC', '#26C6DA', '#FFCA28']
+          : ['#0a7ea4', '#4CAF50', '#FF9800', '#F44336', '#9C27B0', '#00BCD4', '#FFC107'];
+        return {
+          name: category.name,
+          value: spent,
+          color: colors[index % colors.length],
+        };
+      });
+
+    return {
+      totalLimit,
+      totalSpent,
+      totalRemaining,
+      percentageUsed,
+      pieChartData,
+    };
+  }, [activePeriod, activeBudgets, calculateCategorySpent, isDark]);
+
+  // Safely destructure with defaults - budgetStats uses totalLimit, totalSpent, etc.
+  const { 
+    totalLimit: totalBudgetLimit = 0, 
+    totalSpent: totalBudgetSpent = 0, 
+    totalRemaining: totalBudgetRemaining = 0, 
+    percentageUsed: budgetPercentageUsed = 0, 
+    pieChartData = [] 
+  } = budgetStats || {};
 
   const getBudgetStatusColor = (percentage: number) => {
     if (percentage >= 100) return '#F44336'; // Red
@@ -111,6 +251,9 @@ export default function HomeScreen() {
   };
 
   const budgetStatusColor = getBudgetStatusColor(budgetPercentageUsed);
+
+  // Get active shopping lists (not completed)
+  const activeShoppingLists = shoppingLists.filter((list) => !list.completed);
 
   const openAddEventModal = () => {
     setEditingEvent(null);
@@ -274,20 +417,29 @@ export default function HomeScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        {/* Header Section */}
+        {/* Header Section with Avatar */}
         <View style={[styles.header, isDark && styles.headerDark]}>
-          <View style={styles.headerTop}>
+          <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <Text style={[styles.greeting, isDark && styles.greetingDark]}>Hello,</Text>
-              <Text style={[styles.title, isDark && styles.titleDark]}>
-                {userData?.name?.split(' ')[0] || 'Family'}
-              </Text>
-              {family && (
-                <View style={styles.familyBadge}>
-                  <IconSymbol name="house.fill" size={14} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-                  <Text style={[styles.familyName, isDark && styles.familyNameDark]}>{family.name}</Text>
-                </View>
-              )}
+              <View style={[styles.avatar, isDark && styles.avatarDark]}>
+                <Text style={styles.avatarText}>
+                  {userData?.name?.charAt(0).toUpperCase() || 'F'}
+                </Text>
+              </View>
+              <View style={styles.headerText}>
+                <Text style={[styles.greeting, isDark && styles.greetingDark]}>
+                  Hi {userData?.name?.split(' ')[0] || 'Family'},
+                </Text>
+                <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
+                  here's your family update
+                </Text>
+                {family && (
+                  <View style={styles.familyBadge}>
+                    <IconSymbol name="house.fill" size={12} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                    <Text style={[styles.familyName, isDark && styles.familyNameDark]}>{family.name}</Text>
+                  </View>
+                )}
+              </View>
             </View>
             <TouchableOpacity
               style={[styles.addFamilyButton, isDark && styles.addFamilyButtonDark]}
@@ -300,212 +452,59 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Quick Stats Dashboard */}
-        <View style={styles.dashboardSection}>
-          <View style={styles.statsRow}>
-            <TouchableOpacity
-              style={[styles.statCard, isDark && styles.statCardDark]}
-              onPress={() => router.push('/(tabs)/shopping')}
-              activeOpacity={0.7}>
-              <View style={[styles.statIconContainer, { backgroundColor: isDark ? '#1E3A5F' : '#E3F2FD' }]}>
-                <IconSymbol name="cart.fill" size={18} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-              </View>
-              <Text style={[styles.statNumber, isDark && styles.statNumberDark]}>{shoppingLists.length}</Text>
-              <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Lists</Text>
-            </TouchableOpacity>
+        {/* Dashboard Carousel */}
+        <DashboardCarousel>
+          <BudgetCard
+            categories={activeBudgets || []}
+            totalLimit={totalBudgetLimit || 0}
+            totalSpent={totalBudgetSpent || 0}
+            totalRemaining={totalBudgetRemaining || 0}
+            percentageUsed={budgetPercentageUsed || 0}
+            pieChartData={pieChartData || []}
+            activePeriod={activePeriod}
+            calculateCategorySpent={(categoryName: string) => {
+              const category = activeBudgets?.find((cat) => cat.name === categoryName);
+              return category ? calculateCategorySpent(category) : 0;
+            }}
+            getBudgetStatusColor={getBudgetStatusColor}
+          />
+          <ShoppingCard activeLists={activeShoppingLists} allItems={allShoppingItems} />
+          <TasksCard tasks={tasks} />
+          <EventsCard events={events} />
+        </DashboardCarousel>
 
-            <TouchableOpacity
-              style={[styles.statCard, isDark && styles.statCardDark]}
-              onPress={() => router.push('/(tabs)/tasks')}
-              activeOpacity={0.7}>
-              <View style={[styles.statIconContainer, { backgroundColor: isDark ? '#1B5E20' : '#E8F5E9' }]}>
-                <IconSymbol name="checkmark.square.fill" size={18} color={isDark ? '#66BB6A' : '#4CAF50'} />
-              </View>
-              <Text style={[styles.statNumber, isDark && styles.statNumberDark]}>{activeTasks}</Text>
-              <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Tasks</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.statCard, isDark && styles.statCardDark]}
-              onPress={openAddEventModal}
-              activeOpacity={0.7}>
-              <View style={[styles.statIconContainer, { backgroundColor: isDark ? '#4A148C' : '#F3E5F5' }]}>
-                <IconSymbol name="calendar" size={18} color={isDark ? '#AB47BC' : '#9C27B0'} />
-              </View>
-              <Text style={[styles.statNumber, isDark && styles.statNumberDark]}>{upcomingEvents.length}</Text>
-              <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Events</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-      {/* Budget Overview Section */}
-      {budgetCategories.length > 0 && (
-        <View style={styles.budgetSection}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderLeft}>
-              <IconSymbol name="dollarsign.circle.fill" size={22} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-              <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>Budget Overview</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.manageButton, isDark && styles.manageButtonDark]}
-              onPress={() => router.push('/(tabs)/budget')}>
-              <Text style={[styles.manageButtonText, isDark && styles.manageButtonTextDark]}>Manage</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={[styles.budgetCard, isDark && styles.budgetCardDark]}>
-            {/* Budget Summary with Pie Chart */}
-            <View style={styles.budgetSummaryRow}>
-              <View style={styles.budgetSummaryLeft}>
-                <View style={styles.budgetSummaryHeader}>
-                  <Text style={[styles.budgetSummaryLabel, isDark && styles.budgetSummaryLabelDark]}>
-                    Total Spent
-                  </Text>
-                  <Text style={[styles.budgetSummaryAmount, { color: budgetStatusColor }]}>
-                    {formatCurrency(totalBudgetSpent).replace(/\.00$/, '')}
-                  </Text>
-                  <Text style={[styles.budgetSummaryLimit, isDark && styles.budgetSummaryLimitDark]}>
-                    of {formatCurrency(totalBudgetLimit).replace(/\.00$/, '')}
-                  </Text>
-                </View>
-              </View>
-              {pieChartData.length > 0 && (
-                <View style={styles.pieChartContainer}>
-                  <PieChart
-                    data={pieChartData}
-                    size={140}
-                    isDark={isDark}
-                    totalValue={totalBudgetLimit}
-                    centerLabel={budgetPercentageUsed.toFixed(0) + '%'}
-                  />
-                </View>
-              )}
-            </View>
-
-            {/* Budget Categories List */}
-            <View style={styles.budgetCategoriesList}>
-              {budgetCategories.slice(0, 3).map((category) => {
-                const percentage = category.limit > 0 ? (category.spent / category.limit) * 100 : 0;
-                const categoryColor = getBudgetStatusColor(percentage);
-                
-                return (
-                  <TouchableOpacity
-                    key={category.id}
-                    style={[styles.budgetCategoryItem, isDark && styles.budgetCategoryItemDark]}
-                    onPress={() => {
-                      setSelectedBudgetCategory(category);
-                      setBudgetDetailModalVisible(true);
-                    }}
-                    activeOpacity={0.7}>
-                    <View style={styles.budgetCategoryLeft}>
-                      <View style={[styles.budgetCategoryDot, { backgroundColor: categoryColor }]} />
-                      <View style={styles.budgetCategoryInfo}>
-                        <Text style={[styles.budgetCategoryName, isDark && styles.budgetCategoryNameDark]}>
-                          {category.name}
-                        </Text>
-                        <Text style={[styles.budgetCategoryAmount, isDark && styles.budgetCategoryAmountDark]}>
-                          {formatCurrency(category.spent)} / {formatCurrency(category.limit)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.budgetCategoryRight}>
-                      <Text style={[styles.budgetCategoryPercentage, { color: categoryColor }]}>
-                        {percentage.toFixed(0)}%
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-              {budgetCategories.length > 3 && (
-                <TouchableOpacity
-                  style={[styles.viewAllButton, isDark && styles.viewAllButtonDark]}
-                  onPress={() => router.push('/(tabs)/budget')}>
-                  <Text style={[styles.viewAllButtonText, isDark && styles.viewAllButtonTextDark]}>
-                    View all {budgetCategories.length} categories
-                  </Text>
-                  <IconSymbol name="chevron.right" size={16} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-      )}
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionHeaderLeft}>
-            <IconSymbol name="calendar" size={20} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
-              Family Calendar
-            </Text>
-          </View>
+        {/* Quick Action Buttons */}
+        <View style={styles.quickActions}>
           <TouchableOpacity
-            style={[styles.addButton, isDark && styles.addButtonDark]}
-            onPress={openAddEventModal}>
-            <IconSymbol name="plus" size={16} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>Add Event</Text>
+            style={[styles.actionButton, isDark && styles.actionButtonDark]}
+            onPress={openAddShoppingModal}
+            activeOpacity={0.7}>
+            <View style={[styles.actionIconContainer, { backgroundColor: isDark ? '#1E3A5F' : '#E3F2FD' }]}>
+              <IconSymbol name="cart.fill" size={24} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+            </View>
+            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Add Shopping</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, isDark && styles.actionButtonDark]}
+            onPress={openAddTaskModal}
+            activeOpacity={0.7}>
+            <View style={[styles.actionIconContainer, { backgroundColor: isDark ? '#1B5E20' : '#E8F5E9' }]}>
+              <IconSymbol name="checkmark.square.fill" size={24} color={isDark ? '#66BB6A' : '#4CAF50'} />
+            </View>
+            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Add Task</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, isDark && styles.actionButtonDark]}
+            onPress={openAddEventModal}
+            activeOpacity={0.7}>
+            <View style={[styles.actionIconContainer, { backgroundColor: isDark ? '#4A148C' : '#F3E5F5' }]}>
+              <IconSymbol name="calendar" size={24} color={isDark ? '#AB47BC' : '#9C27B0'} />
+            </View>
+            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Add Event</Text>
           </TouchableOpacity>
         </View>
-
-        {upcomingEvents.length === 0 ? (
-          <View style={styles.emptySection}>
-            <IconSymbol name="calendar" size={32} color={isDark ? '#666' : '#999'} />
-            <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>No upcoming events</Text>
-            <TouchableOpacity
-              style={[styles.emptyButton, isDark && styles.emptyButtonDark]}
-              onPress={openAddEventModal}>
-              <Text style={[styles.emptyButtonText, isDark && styles.emptyButtonTextDark]}>
-                Add Your First Event
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          upcomingEvents.map((event) => {
-            const dateStatus = getEventDateStatus(event.date);
-            return (
-              <TouchableOpacity
-                key={event.id}
-                style={[styles.eventItem, isDark && styles.eventItemDark]}
-                onPress={() => openEditEventModal(event)}
-                onLongPress={() => handleDeleteEvent(event)}>
-                <View style={[styles.eventDot, { backgroundColor: dateStatus.color }]} />
-                <View style={styles.eventContent}>
-                  <View style={styles.eventHeader}>
-                    <Text style={[styles.eventTitle, isDark && styles.eventTitleDark]}>{event.title}</Text>
-                    <View style={[styles.creatorBadge, isDark && styles.creatorBadgeDark]}>
-                      <View style={[styles.creatorAvatar, isDark && styles.creatorAvatarDark]}>
-                        <Text style={styles.creatorInitials}>{getUserInitials(event.createdBy)}</Text>
-                      </View>
-                      <Text style={[styles.creatorName, isDark && styles.creatorNameDark]}>
-                        {getUserName(event.createdBy)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.eventMeta}>
-                    <Text style={[styles.eventDate, { color: dateStatus.color }]}>
-                      {dateStatus.text}
-                    </Text>
-                    {event.description && (
-                      <Text style={[styles.eventDescription, isDark && styles.eventDescriptionDark]}>
-                        {event.description}
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={[styles.eventCreatedAt, isDark && styles.eventCreatedAtDark]}>
-                    Created {formatRelativeTime(event.createdAt)}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.eventAction}
-                  onPress={() => openEditEventModal(event)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <IconSymbol name="chevron.right" size={16} color={isDark ? '#938F99' : '#79747E'} />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </View>
       </ScrollView>
 
       {/* Event Modal */}
@@ -971,44 +970,86 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingTop: 60,
-    paddingBottom: 24,
+    paddingBottom: 28,
     backgroundColor: '#FFFFFF',
   },
   headerDark: {
     backgroundColor: '#1C1B1F',
   },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flex: 1,
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#0a7ea4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  avatarDark: {
+    backgroundColor: '#4FC3F7',
+  },
+  avatarText: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  headerText: {
+    flex: 1,
+    justifyContent: 'center',
+  },
   greeting: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 20,
+    color: '#111',
+    fontWeight: '700',
     marginBottom: 4,
-    fontWeight: '500',
+    letterSpacing: -0.3,
   },
   greetingDark: {
-    color: '#938F99',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#111',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  titleDark: {
     color: '#E6E1E5',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 10,
+    lineHeight: 20,
+  },
+  subtitleDark: {
+    color: '#938F99',
   },
   familyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: '#E3F2FD',
   },
   familyName: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#0a7ea4',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   familyNameDark: {
-    color: '#938F99',
+    color: '#4FC3F7',
   },
   dashboardSection: {
     paddingHorizontal: 20,
@@ -1677,25 +1718,61 @@ const styles = StyleSheet.create({
   budgetDetailEmptyDark: {
     color: '#666',
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerLeft: {
-    flex: 1,
-  },
   addFamilyButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#E3F2FD',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 12,
   },
   addFamilyButtonDark: {
     backgroundColor: '#1E3A5F',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 18,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  actionButtonDark: {
+    backgroundColor: '#2C2C2C',
+    borderColor: '#3C3C3C',
+  },
+  actionIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  actionLabelDark: {
+    color: '#E6E1E5',
   },
   familyModeSelection: {
     gap: 16,

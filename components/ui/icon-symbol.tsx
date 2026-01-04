@@ -62,11 +62,18 @@ const MAPPING: IconMapping = {
   'info.circle.fill': 'info',
   // Documents
   'doc.text.fill': 'description',
+  'text.alignleft': 'format-align-left',
   'hand.raised.fill': 'privacy-tip',
   // Actions
   'arrow.right.square.fill': 'logout',
   'xmark.circle.fill': 'cancel',
+  'xmark': 'close',
   'trash.fill': 'delete',
+  'trash': 'delete-outline',
+  'pencil': 'edit',
+  'pencil.fill': 'edit',
+  'ellipsis': 'more-horiz',
+  'ellipsis.circle.fill': 'more-vert',
   'plus': 'add',
   'doc.on.doc.fill': 'content-copy',
   // Charts/Analytics

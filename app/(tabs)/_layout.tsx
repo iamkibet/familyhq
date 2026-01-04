@@ -77,6 +77,13 @@ export default function TabLayout() {
           href: null, // Hide from tab bar
         }}
       />
+      {/* Calendar - Hidden from tab bar */}
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
       <Tabs.Screen
         name="tasks"
         options={{

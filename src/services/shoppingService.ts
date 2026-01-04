@@ -357,12 +357,18 @@ export async function updateShoppingItem(
     const newCategory = updates.budgetCategoryName ?? oldCategory;
     const categoryChanged = oldCategory !== newCategory;
     
-    const oldCategoryBudget = categoryChanged || wasBought 
-      ? await budgetService.getBudgetCategoryByName(familyId, oldCategory)
+    // Find categories in active period
+    const oldCategoryResult = (categoryChanged || wasBought) && oldCategory
+      ? await budgetService.getBudgetCategoryByNameInActivePeriod(familyId, oldCategory)
       : null;
-    const newCategoryBudget = categoryChanged || isBought
-      ? await budgetService.getBudgetCategoryByName(familyId, newCategory)
+    const newCategoryResult = (categoryChanged || isBought) && newCategory
+      ? await budgetService.getBudgetCategoryByNameInActivePeriod(familyId, newCategory)
       : null;
+    
+    const oldCategoryBudget = oldCategoryResult?.category || null;
+    const newCategoryBudget = newCategoryResult?.category || null;
+    const oldPeriodId = oldCategoryResult?.periodId || null;
+    const newPeriodId = newCategoryResult?.periodId || null;
     
     await runTransaction(db, async (transaction) => {
       // Re-read the item to get latest state
@@ -385,8 +391,8 @@ export async function updateShoppingItem(
         // Item was and still is bought - adjust budget if price/category changed
         if (priceDiff !== 0 || categoryChanged) {
           // Update old category budget if category changed
-          if (categoryChanged && oldCategoryBudget) {
-            const oldCategoryRef = doc(db, COLLECTIONS.BUDGETS, oldCategoryBudget.id);
+          if (categoryChanged && oldCategoryBudget && oldPeriodId) {
+            const oldCategoryRef = doc(db, COLLECTIONS.BUDGET_PERIODS, oldPeriodId, COLLECTIONS.BUDGET_CATEGORIES, oldCategoryBudget.id);
             const oldCategoryDoc = await transaction.get(oldCategoryRef);
             if (oldCategoryDoc.exists()) {
               const oldSpent = (oldCategoryDoc.data().spent as number) || 0;
@@ -395,8 +401,8 @@ export async function updateShoppingItem(
           }
           
           // Update new category budget
-          if (newCategoryBudget) {
-            const newCategoryRef = doc(db, COLLECTIONS.BUDGETS, newCategoryBudget.id);
+          if (newCategoryBudget && newPeriodId) {
+            const newCategoryRef = doc(db, COLLECTIONS.BUDGET_PERIODS, newPeriodId, COLLECTIONS.BUDGET_CATEGORIES, newCategoryBudget.id);
             const newCategoryDoc = await transaction.get(newCategoryRef);
             if (newCategoryDoc.exists()) {
               const newSpent = (newCategoryDoc.data().spent as number) || 0;
@@ -444,9 +450,17 @@ export async function deleteShoppingItem(
   const item = { id: itemDoc.id, ...itemDoc.data() } as ShoppingItem;
   
   // Get budget category before transaction (queries can't be done in transactions)
-  const categoryBudget = item.isBought
-    ? await budgetService.getBudgetCategoryByName(familyId, item.budgetCategoryName)
-    : null;
+  // Find category in active period
+  let categoryBudget: BudgetCategory | null = null;
+  let periodId: string | null = null;
+  
+  if (item.isBought && item.budgetCategoryName) {
+    const result = await budgetService.getBudgetCategoryByNameInActivePeriod(familyId, item.budgetCategoryName);
+    if (result) {
+      categoryBudget = result.category;
+      periodId = result.periodId;
+    }
+  }
   
   await runTransaction(db, async (transaction) => {
     // Re-read item to ensure it still exists
@@ -456,8 +470,9 @@ export async function deleteShoppingItem(
     }
     
     // If item is bought, subtract from budget
-    if (item.isBought && categoryBudget) {
-      const budgetRef = doc(db, COLLECTIONS.BUDGETS, categoryBudget.id);
+    if (item.isBought && categoryBudget && periodId) {
+      // Budget category is in subcollection: budgetPeriods/{periodId}/budgets/{categoryId}
+      const budgetRef = doc(db, COLLECTIONS.BUDGET_PERIODS, periodId, COLLECTIONS.BUDGET_CATEGORIES, categoryBudget.id);
       const budgetDoc = await transaction.get(budgetRef);
       
       if (budgetDoc.exists()) {
@@ -509,16 +524,22 @@ export async function toggleShoppingItemBought(
   
   // Get the budget category before transaction (queries can't be done in transactions)
   let categoryBudget: BudgetCategory | null = null;
+  let periodId: string | null = null;
+  
   try {
     if (!item.budgetCategoryName) {
       console.warn('Shopping item has no budget category name:', item);
       throw new Error('Item has no budget category assigned');
     }
-    categoryBudget = await budgetService.getBudgetCategoryByName(familyId, item.budgetCategoryName);
-    if (!categoryBudget) {
-      console.warn(`Budget category "${item.budgetCategoryName}" not found for family ${familyId}`);
-      throw new Error(`Budget category "${item.budgetCategoryName}" not found. Please create it in the Budget screen.`);
+    
+    // Find category in active period
+    const result = await budgetService.getBudgetCategoryByNameInActivePeriod(familyId, item.budgetCategoryName);
+    if (!result) {
+      console.warn(`Budget category "${item.budgetCategoryName}" not found in active period for family ${familyId}`);
+      throw new Error(`Budget category "${item.budgetCategoryName}" not found in active period. Please create it in the Budget screen.`);
     }
+    categoryBudget = result.category;
+    periodId = result.periodId;
   } catch (error: any) {
     // If category lookup fails, throw error to user
     console.error('Error finding budget category:', error);
@@ -540,14 +561,15 @@ export async function toggleShoppingItemBought(
       return; // Already in desired state
     }
     
-    if (!categoryBudget) {
+    if (!categoryBudget || !periodId) {
       // This shouldn't happen if we checked above, but handle gracefully
-      console.warn('Category budget is null, updating item without budget change');
+      console.warn('Category budget or periodId is null, updating item without budget change');
       transaction.update(itemRef, { isBought });
       return;
     }
     
-    const budgetRef = doc(db, COLLECTIONS.BUDGETS, categoryBudget.id);
+    // Budget category is in subcollection: budgetPeriods/{periodId}/budgets/{categoryId}
+    const budgetRef = doc(db, COLLECTIONS.BUDGET_PERIODS, periodId, COLLECTIONS.BUDGET_CATEGORIES, categoryBudget.id);
     const budgetDoc = await transaction.get(budgetRef);
     
     if (!budgetDoc.exists()) {

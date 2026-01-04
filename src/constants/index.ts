@@ -9,6 +9,8 @@ export const COLLECTIONS = {
   SHOPPING_ITEMS: 'items', // Subcollection: families/{familyId}/shoppingLists/{listId}/items/{itemId}
   SHOPPING: 'shopping', // Legacy - will be migrated
   BUDGETS: 'budgets',
+  BUDGET_PERIODS: 'budgetPeriods', // Top-level collection
+  BUDGET_CATEGORIES: 'budgets', // Subcollection: budgetPeriods/{periodId}/budgets/{categoryId}
   DIRECT_EXPENSES: 'directExpenses', // Subcollection: families/{familyId}/directExpenses/{expenseId}
   TASKS: 'tasks',
   EVENTS: 'events',

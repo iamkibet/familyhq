@@ -38,12 +38,36 @@ export interface ShoppingItem {
   familyId: string;
 }
 
+/**
+ * Budget Period represents a time period for budgeting
+ * - startDate: Start date of the budget period (YYYY-MM-DD format)
+ * - endDate: End date of the budget period (YYYY-MM-DD format)
+ * - isArchived: Whether the period has been archived (expired periods are archived)
+ */
+export interface BudgetPeriod {
+  id: string;
+  name: string; // e.g., "January 2024 Budget"
+  startDate: string; // Start date in YYYY-MM-DD format
+  endDate: string; // End date in YYYY-MM-DD format
+  familyId: string;
+  createdAt: Timestamp;
+  isArchived: boolean;
+}
+
+/**
+ * Budget Category represents a budget category within a budget period
+ * - limit: Budget limit for this category within the period
+ * - budgetPeriodId: Reference to the BudgetPeriod this category belongs to
+ * - spent: Amount spent within the budget period (calculated from expenses within the period's date range)
+ */
 export interface BudgetCategory {
   id: string;
   name: string;
-  limit: number;
-  spent: number;
+  limit: number; // Budget limit for the category
+  budgetPeriodId: string; // Reference to the BudgetPeriod it belongs to
+  spent: number; // Amount spent within the budget period (calculated dynamically)
   familyId: string;
+  createdAt?: Timestamp; // When the budget category was created
 }
 
 export interface DirectExpense {

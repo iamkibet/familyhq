@@ -6,6 +6,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { useBudgetStore } from '@/src/stores/budgetStore';
 import { useDirectExpenseStore } from '@/src/stores/directExpenseStore';
 import { useShoppingStore } from '@/src/stores/shoppingStore';
+import * as budgetService from '@/src/services/budgetService';
 import { DirectExpense, ShoppingItem, ShoppingList } from '@/src/types';
 import { formatRelativeTime } from '@/src/utils';
 import React, { useEffect, useState } from 'react';
@@ -267,7 +268,7 @@ export default function ShoppingListScreen() {
     }
 
     try {
-      await addDirectExpense(
+      await budgetService.addDirectExpense(
         family.id,
         directExpenseFormData.budgetCategoryName,
         amount,

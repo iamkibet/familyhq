@@ -1,31 +1,41 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to get user's familyId (safely handles missing user document and empty strings)
+    // Helper function to get user's familyId
     function getUserFamilyId() {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      let familyId = userDoc.exists && userDoc.data.familyId != null ? userDoc.data.familyId : null;
-      // Return null if familyId is empty string (user hasn't joined a family yet)
-      return familyId != null && familyId != '' ? familyId : null;
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId
+        : null;
     }
     
     // Helper function to check if user belongs to a family
     function belongsToFamily(familyId) {
-      return request.auth != null && getUserFamilyId() == familyId;
+      return request.auth != null && 
+        getUserFamilyId() != null && 
+        getUserFamilyId() != '' &&
+        familyId != null &&
+        getUserFamilyId() == familyId;
     }
     
     // Helper function to check if user belongs to the family in a document
-    // This works for both individual document reads and queries
     function belongsToDocumentFamily() {
-      return request.auth != null 
-        && getUserFamilyId() != null 
-        && resource.data.familyId != null
-        && getUserFamilyId() == resource.data.familyId;
+      return request.auth != null && 
+        getUserFamilyId() != null && 
+        getUserFamilyId() != '' &&
+        resource.data.familyId != null &&
+        resource.data.familyId != '' &&
+        getUserFamilyId() == resource.data.familyId;
     }
     
     // Helper function to check if user can create a document with a specific familyId
     function canCreateForFamily(familyId) {
-      return request.auth != null && getUserFamilyId() != null && getUserFamilyId() == familyId;
+      return request.auth != null && 
+        getUserFamilyId() != null && 
+        getUserFamilyId() != '' &&
+        familyId != null && 
+        familyId != '' &&
+        getUserFamilyId() == familyId;
     }
     
     // Users can read/write their own user document
@@ -33,7 +43,7 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false; // Prevent user deletion
+      allow delete: if false;
     }
     
     // Family data
@@ -49,53 +59,71 @@ service cloud.firestore {
       
       // Prevent deletion
       allow delete: if false;
-    }
-    
-    // Shopping lists - subcollection of families
-    match /families/{familyId}/shoppingLists/{listId} {
-      allow read: if request.auth != null && belongsToFamily(familyId);
-      allow create: if request.auth != null && belongsToFamily(familyId);
-      allow update, delete: if request.auth != null && belongsToFamily(familyId);
       
-      // Shopping items - subcollection of shopping lists
-      match /items/{itemId} {
+      // Shopping lists - subcollection of families
+      match /shoppingLists/{listId} {
+        allow read: if request.auth != null && belongsToFamily(familyId);
+        allow create: if request.auth != null && belongsToFamily(familyId);
+        allow update, delete: if request.auth != null && belongsToFamily(familyId);
+        
+        // Shopping items - subcollection of shopping lists
+        match /items/{itemId} {
+          allow read: if request.auth != null && belongsToFamily(familyId);
+          allow create: if request.auth != null && belongsToFamily(familyId);
+          allow update, delete: if request.auth != null && belongsToFamily(familyId);
+        }
+      }
+      
+      // Direct expenses - subcollection of families
+      match /directExpenses/{expenseId} {
         allow read: if request.auth != null && belongsToFamily(familyId);
         allow create: if request.auth != null && belongsToFamily(familyId);
         allow update, delete: if request.auth != null && belongsToFamily(familyId);
       }
     }
     
-    // Direct expenses - subcollection of families
-    match /families/{familyId}/directExpenses/{expenseId} {
-      allow read: if request.auth != null && belongsToFamily(familyId);
-      allow create: if request.auth != null && belongsToFamily(familyId);
-      allow update, delete: if request.auth != null && belongsToFamily(familyId);
-    }
-    
-    // Legacy shopping items (for backward compatibility - can be removed if not needed)
+    // Legacy shopping items (for backward compatibility)
     match /shopping/{itemId} {
       allow read: if belongsToDocumentFamily();
       allow create: if canCreateForFamily(request.resource.data.familyId);
       allow update, delete: if belongsToDocumentFamily();
     }
     
-    // Budget categories - scoped to family
+    // Budget periods - top-level collection
+    match /budgetPeriods/{periodId} {
+      allow read: if belongsToDocumentFamily();
+      allow create: if canCreateForFamily(request.resource.data.familyId);
+      allow update: if belongsToDocumentFamily() || 
+        (request.auth != null && canCreateForFamily(request.resource.data.familyId));
+      allow delete: if belongsToDocumentFamily();
+      
+      // Budget categories - subcollection of budget periods
+      match /budgets/{categoryId} {
+        allow read: if belongsToDocumentFamily();
+        allow create: if canCreateForFamily(request.resource.data.familyId);
+        allow update: if belongsToDocumentFamily() || 
+          (request.auth != null && canCreateForFamily(request.resource.data.familyId));
+        allow delete: if belongsToDocumentFamily();
+      }
+    }
+    
+    // Budget categories - top-level collection (legacy, for backward compatibility)
     match /budgets/{categoryId} {
       allow read: if belongsToDocumentFamily();
       allow create: if canCreateForFamily(request.resource.data.familyId);
-      // For update, check both existing and new data to handle transactions
-      allow update: if belongsToDocumentFamily() || canCreateForFamily(request.resource.data.familyId);
+      allow update: if belongsToDocumentFamily() || 
+        (request.auth != null && canCreateForFamily(request.resource.data.familyId));
       allow delete: if belongsToDocumentFamily();
     }
     
-    // Tasks - scoped to family
+    // Tasks - top-level collection
     match /tasks/{taskId} {
       allow read: if belongsToDocumentFamily();
       allow create: if canCreateForFamily(request.resource.data.familyId);
       allow update, delete: if belongsToDocumentFamily();
     }
     
-    // Events - scoped to family
+    // Events - top-level collection
     match /events/{eventId} {
       allow read: if belongsToDocumentFamily();
       allow create: if canCreateForFamily(request.resource.data.familyId);
@@ -103,4 +131,3 @@ service cloud.firestore {
     }
   }
 }
-

@@ -17,9 +17,14 @@ import { useCalendarStore } from '@/src/stores/calendarStore';
 import { useAuthStore } from '@/src/stores/authStore';
 import { FamilyEvent } from '@/src/types';
 import { formatDate, formatDateForInput, isToday, isPast } from '@/src/utils';
+import { DatePicker } from '@/src/components/DatePicker';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useThemeScheme } from '@/hooks/use-theme-scheme';
 
 export default function CalendarScreen() {
   const { userData, family } = useAuthStore();
+  const colorScheme = useThemeScheme();
+  const isDark = colorScheme === 'dark';
   const {
     events,
     loading,
@@ -30,6 +35,8 @@ export default function CalendarScreen() {
     clearEvents,
   } = useCalendarStore();
   const [modalVisible, setModalVisible] = useState(false);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<FamilyEvent | null>(null);
   const [editingEvent, setEditingEvent] = useState<FamilyEvent | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -144,6 +151,30 @@ export default function CalendarScreen() {
   const groupedEvents = groupEventsByDate();
   const sortedDates = Object.keys(groupedEvents).sort();
 
+  const openDetailsModal = (event: FamilyEvent) => {
+    setSelectedEvent(event);
+    setDetailsModalVisible(true);
+  };
+
+  const closeDetailsModal = () => {
+    setDetailsModalVisible(false);
+    setSelectedEvent(null);
+  };
+
+  const handleEditFromDetails = () => {
+    if (selectedEvent) {
+      closeDetailsModal();
+      openEditModal(selectedEvent);
+    }
+  };
+
+  const handleDeleteFromDetails = () => {
+    if (selectedEvent) {
+      closeDetailsModal();
+      handleDelete(selectedEvent);
+    }
+  };
+
   const renderEvent = (event: FamilyEvent) => {
     const eventDate = new Date(event.date);
     const isEventToday = isToday(event.date);
@@ -156,7 +187,7 @@ export default function CalendarScreen() {
           isEventToday && styles.eventCardToday,
           isEventPast && styles.eventCardPast,
         ]}
-        onPress={() => openEditModal(event)}
+        onPress={() => openDetailsModal(event)}
         onLongPress={() => handleDelete(event)}>
         <View style={styles.eventContent}>
           <View style={styles.eventHeader}>
@@ -181,19 +212,22 @@ export default function CalendarScreen() {
           <Text style={[styles.dateText, isDateToday && styles.dateTextToday]}>
             {formatDate(date)}
           </Text>
-          {isDateToday && <Text style={styles.todayBadge}>Today</Text>}
-          {isDatePast && !isDateToday && (
-            <Text style={styles.pastBadge}>Past</Text>
-          )}
+          <View style={styles.dateHeaderRight}>
+            {isDateToday && <Text style={styles.todayBadge}>Today</Text>}
+            {isDatePast && !isDateToday && (
+              <Text style={styles.pastBadge}>Past</Text>
+            )}
+            <TouchableOpacity
+              style={styles.addEventButton}
+              onPress={() => openAddModal(date)}
+              activeOpacity={0.7}>
+              <IconSymbol name="plus" size={20} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+            </TouchableOpacity>
+          </View>
         </View>
         {dateEvents.map((event) => (
           <View key={event.id}>{renderEvent(event)}</View>
         ))}
-        <TouchableOpacity
-          style={styles.addEventButton}
-          onPress={() => openAddModal(date)}>
-          <Text style={styles.addEventButtonText}>+ Add Event</Text>
-        </TouchableOpacity>
       </View>
     );
   };
@@ -229,9 +263,74 @@ export default function CalendarScreen() {
         />
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={() => openAddModal()}>
-        <Text style={styles.fabText}>+</Text>
+      <TouchableOpacity 
+        style={[styles.fab, isDark && styles.fabDark]} 
+        onPress={() => openAddModal()}
+        activeOpacity={0.8}>
+        <IconSymbol name="plus" size={28} color="#FFFFFF" />
       </TouchableOpacity>
+
+      {/* Event Details Modal */}
+      <Modal
+        visible={detailsModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closeDetailsModal}>
+        <TouchableOpacity
+          style={styles.detailsModalOverlay}
+          activeOpacity={1}
+          onPress={closeDetailsModal}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.detailsModalContent, isDark && styles.detailsModalContentDark]}>
+              {selectedEvent && (
+                <>
+                  <View style={[styles.detailsHeader, isDark && styles.detailsHeaderDark]}>
+                    <View style={styles.detailsHeaderContent}>
+                      <Text style={[styles.detailsTitle, isDark && styles.detailsTitleDark]}>
+                        {selectedEvent.title}
+                      </Text>
+                      <Text style={[styles.detailsDate, isDark && styles.detailsDateDark]}>
+                        {formatDate(selectedEvent.date)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity 
+                      onPress={closeDetailsModal} 
+                      style={[styles.closeButton, isDark && styles.closeButtonDark]}
+                      activeOpacity={0.7}>
+                      <IconSymbol name="xmark" size={18} color={isDark ? '#938F99' : '#666'} />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {selectedEvent.description && (
+                    <View style={styles.detailsBody}>
+                      <Text style={[styles.detailsDescription, isDark && styles.detailsDescriptionDark]}>
+                        {selectedEvent.description}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={[styles.detailsActions, isDark && styles.detailsActionsDark]}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.editButton]}
+                      onPress={handleEditFromDetails}
+                      activeOpacity={0.85}>
+                      <IconSymbol name="pencil" size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={handleDeleteFromDetails}
+                      activeOpacity={0.85}>
+                      <IconSymbol name="trash" size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <Modal
         visible={modalVisible}
@@ -255,12 +354,10 @@ export default function CalendarScreen() {
               autoFocus
             />
 
-            <Text style={styles.label}>Date</Text>
-            <TextInput
-              style={styles.input}
+            <DatePicker
+              label="Date"
               value={formData.date}
-              onChangeText={(text) => setFormData({ ...formData, date: text })}
-              placeholder="YYYY-MM-DD"
+              onChange={(date) => setFormData({ ...formData, date })}
             />
 
             <Text style={styles.label}>Description (Optional)</Text>
@@ -346,7 +443,12 @@ const styles = StyleSheet.create({
   dateHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  dateHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   dateText: {
@@ -417,39 +519,30 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   addEventButton: {
-    padding: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  addEventButtonText: {
-    fontSize: 14,
-    color: '#0a7ea4',
-    fontWeight: '600',
   },
   fab: {
     position: 'absolute',
     right: 20,
     bottom: 20,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#0a7ea4',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
-  fabText: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: '300',
+  fabDark: {
+    backgroundColor: '#4FC3F7',
   },
   modalContainer: {
     flex: 1,
@@ -514,6 +607,116 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  detailsModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  detailsModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    width: '100%',
+    maxHeight: '90%',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  detailsModalContentDark: {
+    backgroundColor: '#2C2C2C',
+  },
+  detailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  detailsHeaderDark: {
+    borderBottomColor: '#3C3C3C',
+  },
+  detailsHeaderContent: {
+    flex: 1,
+    marginRight: 16,
+  },
+  detailsTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111',
+    marginBottom: 8,
+    lineHeight: 32,
+  },
+  detailsDate: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#666',
+  },
+  detailsTitleDark: {
+    color: '#E6E1E5',
+  },
+  detailsDateDark: {
+    color: '#938F99',
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  closeButtonDark: {
+    backgroundColor: '#3C3C3C',
+  },
+  detailsBody: {
+    padding: 24,
+    paddingTop: 20,
+  },
+  detailsDescription: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#333',
+    lineHeight: 24,
+  },
+  detailsDescriptionDark: {
+    color: '#E6E1E5',
+  },
+  detailsActions: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    justifyContent: 'flex-end',
+  },
+  detailsActionsDark: {
+    borderTopColor: '#3C3C3C',
+  },
+  actionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  editButton: {
+    backgroundColor: '#0a7ea4',
+  },
+  deleteButton: {
+    backgroundColor: '#E53935',
   },
 });
 
