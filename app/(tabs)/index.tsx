@@ -22,6 +22,7 @@ import { useDirectExpenseStore } from '@/src/stores/directExpenseStore';
 import { useNotesStore } from '@/src/stores/notesStore';
 import { useFamilyData } from '@/src/hooks/useFamilyData';
 import { useFamilyMembers } from '@/src/hooks/useFamilyMembers';
+import { useReadActivitiesStore } from '@/src/stores/readActivitiesStore';
 import { formatDate, formatDateForInput, formatRelativeTime, isToday, isPast, TimePeriod, isWithinTimePeriod, isBudgetActive, isDateInRange } from '@/src/utils';
 import { useFormatCurrency } from '@/src/hooks/use-format-currency';
 import { FamilyEvent, ShoppingItem, Task, User, BudgetCategory, DirectExpense } from '@/src/types';
@@ -36,6 +37,7 @@ import { TasksCard } from '@/src/components/dashboard/TasksCard';
 import { EventsCard } from '@/src/components/dashboard/EventsCard';
 import { NotesCard } from '@/src/components/dashboard/NotesCard';
 import { HeroSection } from '@/src/components/dashboard/HeroSection';
+import { ActivityFeed, Activity } from '@/src/components/dashboard/ActivityFeed';
 
 export default function HomeScreen() {
   useFamilyData(); // Initialize all family data stores
@@ -81,6 +83,14 @@ export default function HomeScreen() {
     }
   }, [userData?.id, subscribeToNotes, clearNotes]);
 
+  // Load read activities
+  const { readActivityIds, loadReadActivities, markAsRead } = useReadActivitiesStore();
+  useEffect(() => {
+    if (userData?.id) {
+      loadReadActivities(userData.id);
+    }
+  }, [userData?.id, loadReadActivities]);
+
   const { tasks, addTask } = useTaskStore();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendarStore();
   const { categories: budgetCategories, activePeriod } = useBudgetStore();
@@ -107,6 +117,7 @@ export default function HomeScreen() {
     dueDate: formatDateForInput(new Date()),
   });
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('thisMonth');
+  const [activityFeedVisible, setActivityFeedVisible] = useState(false);
 
   const activeTasks = tasks.filter((t) => !t.completed).length;
   const completedTasks = tasks.filter((t) => t.completed).length;
@@ -271,6 +282,72 @@ export default function HomeScreen() {
   // Get active shopping lists (not completed)
   const activeShoppingLists = shoppingLists.filter((list) => !list.completed);
 
+  // Aggregate activities from tasks, events, and shopping lists
+  const activities = useMemo(() => {
+    const activityList: Activity[] = [];
+
+    // Add tasks
+    tasks.forEach((task) => {
+      if (task.createdAt) {
+        activityList.push({
+          id: `task-${task.id}`,
+          type: 'task',
+          title: `added a task: "${task.title}"`,
+          userName: getUserName(task.createdBy),
+          timestamp: task.createdAt,
+          icon: 'checkmark.square.fill',
+          color: isDark ? '#66BB6A' : '#4CAF50',
+        });
+      }
+    });
+
+    // Add events
+    events.forEach((event) => {
+      if (event.createdAt) {
+        activityList.push({
+          id: `event-${event.id}`,
+          type: 'event',
+          title: `added an event: "${event.title}"`,
+          userName: getUserName(event.createdBy),
+          timestamp: event.createdAt,
+          icon: 'calendar',
+          color: isDark ? '#AB47BC' : '#9C27B0',
+        });
+      }
+    });
+
+    // Add shopping lists
+    shoppingLists.forEach((list) => {
+      if (list.createdAt) {
+        activityList.push({
+          id: `shopping-${list.id}`,
+          type: 'shopping_list',
+          title: `created a shopping list: "${list.name}"`,
+          userName: getUserName(list.createdBy),
+          timestamp: list.createdAt,
+          icon: 'cart.fill',
+          color: isDark ? '#4FC3F7' : '#0a7ea4',
+        });
+      }
+    });
+
+    // Sort by timestamp (most recent first) and limit to 10
+    return activityList
+      .sort((a, b) => {
+        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp).getTime();
+        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : new Date(b.timestamp).getTime();
+        return timeB - timeA;
+      })
+      .slice(0, 10);
+  }, [tasks, events, shoppingLists, getUserName, isDark]);
+
+  // Filter out read activities and calculate notification count
+  const unreadActivities = useMemo(() => {
+    return activities.filter(activity => !readActivityIds.has(activity.id));
+  }, [activities, readActivityIds]);
+
+  const notificationCount = unreadActivities.length;
+
   const openAddEventModal = () => {
     setEditingEvent(null);
     setEventFormData({
@@ -434,7 +511,11 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
         {/* Hero Section */}
-        <HeroSection family={family} />
+        <HeroSection
+          family={family}
+          onNotificationPress={() => setActivityFeedVisible(true)}
+          notificationCount={notificationCount}
+        />
 
         {/* Dashboard Carousel */}
         <DashboardCarousel>
@@ -489,6 +570,23 @@ export default function HomeScreen() {
           <NotesCard notes={notes} />
         </View>
       </ScrollView>
+
+      {/* Activity Feed Modal */}
+      <ActivityFeed
+        visible={activityFeedVisible}
+        onClose={() => setActivityFeedVisible(false)}
+        activities={activities}
+        readActivityIds={readActivityIds}
+        onMarkAsRead={async (activityId: string) => {
+          if (userData?.id) {
+            try {
+              await markAsRead(userData.id, activityId);
+            } catch (error) {
+              console.error('Failed to mark activity as read:', error);
+            }
+          }
+        }}
+      />
 
       {/* Event Modal */}
       <Modal

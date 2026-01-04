@@ -318,6 +318,23 @@ export async function addShoppingItem(
       createdAt: serverTimestamp(),
     }
   );
+  
+  // Send notification for new shopping item
+  try {
+    const userName = await getUserName(item.createdBy);
+    const listDoc = await getDoc(doc(db, COLLECTIONS.FAMILIES, familyId, COLLECTIONS.SHOPPING_LISTS, listId));
+    const listName = listDoc.data()?.name || 'Shopping List';
+    
+    notificationService.scheduleNotification(
+      'New Shopping Item',
+      `${userName} added "${item.name}" to ${listName}`
+    ).catch((error) => {
+      console.warn('Failed to send notification:', error);
+    });
+  } catch (error) {
+    console.warn('Failed to send shopping item notification:', error);
+  }
+  
   return docRef.id;
 }
 

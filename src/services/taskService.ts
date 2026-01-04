@@ -15,6 +15,7 @@ import { Task } from '@/src/types';
 import { COLLECTIONS } from '@/src/constants';
 import * as notificationService from './notificationService';
 import * as authService from './authService';
+import { isToday } from '@/src/utils';
 
 /**
  * Subscribe to tasks for a family (real-time)
@@ -78,12 +79,29 @@ export async function addTask(
   try {
     const userData = await authService.getCurrentUserData(task.createdBy);
     const userName = userData?.name || 'Someone';
+    
+    // Immediate notification for new task
     notificationService.scheduleNotification(
       'New Task',
       `${userName} added a new task: ${task.title}`
     ).catch((error) => {
       console.warn('Failed to send notification:', error);
     });
+    
+    // Schedule "today" reminder if task is due today
+    if (isToday(task.dueDate)) {
+      const todayDate = new Date();
+      todayDate.setHours(8, 0, 0, 0); // 8 AM reminder
+      if (todayDate.getTime() > Date.now()) {
+        notificationService.scheduleNotificationForDate(
+          'Task Due Today',
+          `Don't forget: ${task.title}`,
+          todayDate
+        ).catch((error) => {
+          console.warn('Failed to schedule today reminder:', error);
+        });
+      }
+    }
   } catch (error) {
     console.warn('Failed to get user name for notification:', error);
   }

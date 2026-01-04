@@ -75,12 +75,29 @@ export async function addEvent(
     const userData = await authService.getCurrentUserData(event.createdBy);
     const userName = userData?.name || 'Someone';
     const eventDate = new Date(event.date).toLocaleDateString();
+    
+    // Immediate notification for new event
     notificationService.scheduleNotification(
       'New Family Event',
       `${userName} added a new event: ${event.title} on ${eventDate}`
     ).catch((error) => {
       console.warn('Failed to send notification:', error);
     });
+    
+    // Schedule "today" reminder if event is today
+    if (isToday(event.date)) {
+      const todayDate = new Date();
+      todayDate.setHours(8, 0, 0, 0); // 8 AM reminder
+      if (todayDate.getTime() > Date.now()) {
+        notificationService.scheduleNotificationForDate(
+          'Event Today',
+          `Today: ${event.title}`,
+          todayDate
+        ).catch((error) => {
+          console.warn('Failed to schedule today reminder:', error);
+        });
+      }
+    }
   } catch (error) {
     console.warn('Failed to get user name for notification:', error);
   }

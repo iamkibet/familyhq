@@ -21,6 +21,8 @@ const MAPPING: IconMapping = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.left': 'chevron-left',
   'chevron.right': 'chevron-right',
+  'chevron.down': 'keyboard-arrow-down',
+  'chevron.up': 'keyboard-arrow-up',
   // Shopping
   'cart.fill': 'shopping-cart',
   'cart': 'shopping-cart',
@@ -32,6 +34,8 @@ const MAPPING: IconMapping = {
   'checkmark.circle': 'check-circle-outline',
   'checkmark.square.fill': 'check-box',
   'checkmark.square': 'check-box-outline-blank',
+  'circle': 'radio-button-unchecked',
+  'circle.fill': 'radio-button-checked',
   'list.bullet.rectangle.fill': 'assignment',
   'list.bullet.rectangle': 'assignment',
   // Calendar
@@ -58,6 +62,10 @@ const MAPPING: IconMapping = {
   'bell.badge.fill': 'notifications-active',
   // Privacy/Security
   'lock.fill': 'lock',
+  'key.fill': 'vpn-key',
+  // Camera
+  'camera.fill': 'camera-alt',
+  'camera': 'camera-alt',
   // Info
   'info.circle.fill': 'info',
   // Documents

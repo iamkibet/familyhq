@@ -6,6 +6,7 @@ export interface User {
   email: string;
   familyId: string;
   role: 'admin' | 'member';
+  readActivities?: string[]; // Array of activity IDs that user has marked as read
 }
 
 export interface Family {

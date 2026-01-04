@@ -99,3 +99,69 @@ export async function scheduleNotification(
   }
 }
 
+/**
+ * Schedule a notification for a specific date/time (for "today" reminders)
+ */
+export async function scheduleNotificationForDate(
+  title: string,
+  body: string,
+  date: Date
+): Promise<string | null> {
+  if (!Notifications) {
+    console.warn('Notifications not available in this environment');
+    return null;
+  }
+  try {
+    // Schedule notification for the specified date at 8 AM
+    const notificationDate = new Date(date);
+    notificationDate.setHours(8, 0, 0, 0);
+    
+    // Only schedule if the date is in the future
+    if (notificationDate.getTime() <= Date.now()) {
+      return null;
+    }
+
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: true,
+      },
+      trigger: notificationDate,
+    });
+    
+    return notificationId;
+  } catch (error) {
+    console.warn('Could not schedule notification for date:', error);
+    return null;
+  }
+}
+
+/**
+ * Cancel a scheduled notification by ID
+ */
+export async function cancelScheduledNotification(notificationId: string): Promise<void> {
+  if (!Notifications) {
+    return;
+  }
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+  } catch (error) {
+    console.warn('Could not cancel notification:', error);
+  }
+}
+
+/**
+ * Cancel all scheduled notifications
+ */
+export async function cancelAllScheduledNotifications(): Promise<void> {
+  if (!Notifications) {
+    return;
+  }
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+  } catch (error) {
+    console.warn('Could not cancel all notifications:', error);
+  }
+}
+

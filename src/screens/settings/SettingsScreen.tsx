@@ -17,6 +17,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeStore } from '@/src/stores/themeStore';
 import { useSettingsStore } from '@/src/stores/settingsStore';
 import { useCurrencyStore, CURRENCIES } from '@/src/stores/currencyStore';
+import { useFamilyMembers } from '@/src/hooks/useFamilyMembers';
 import Constants from 'expo-constants';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getNotificationPermissionStatus, requestNotificationPermissions } from '@/src/services/notificationService';
@@ -42,6 +43,8 @@ export default function SettingsScreen() {
   const [familyName, setFamilyName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
+  const [familyMembersExpanded, setFamilyMembersExpanded] = useState(false);
+  const { members: familyMembers, getUserInitials } = useFamilyMembers();
 
   useEffect(() => {
     initializeTheme();
@@ -401,6 +404,66 @@ export default function SettingsScreen() {
             }}
             showArrow={false}
           />
+          
+          {/* Family Members Accordion */}
+          <TouchableOpacity
+            style={[styles.settingItem, isDark && styles.settingItemDark]}
+            onPress={() => setFamilyMembersExpanded(!familyMembersExpanded)}
+            activeOpacity={0.7}>
+            <View style={styles.settingItemLeft}>
+              <View style={[styles.iconContainer, isDark && styles.iconContainerDark]}>
+                <IconSymbol name="person.2.fill" size={20} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+              </View>
+              <View style={styles.settingItemText}>
+                <Text style={[styles.settingItemTitle, isDark && styles.settingItemTitleDark]}>
+                  Family Members
+                </Text>
+                <Text style={[styles.settingItemSubtitle, isDark && styles.settingItemSubtitleDark]}>
+                  {familyMembers.length} {familyMembers.length === 1 ? 'member' : 'members'}
+                </Text>
+              </View>
+            </View>
+            <IconSymbol 
+              name={familyMembersExpanded ? "chevron.down" : "chevron.right"} 
+              size={16} 
+              color={isDark ? '#938F99' : '#79747E'} 
+            />
+          </TouchableOpacity>
+          
+          {familyMembersExpanded && (
+            <View style={[styles.familyMembersList, isDark && styles.familyMembersListDark]}>
+              {familyMembers.length === 0 ? (
+                <Text style={[styles.emptyMembersText, isDark && styles.emptyMembersTextDark]}>
+                  No family members found
+                </Text>
+              ) : (
+                familyMembers.map((member) => (
+                  <View
+                    key={member.id}
+                    style={[styles.memberItem, isDark && styles.memberItemDark]}>
+                    <View style={[styles.memberAvatar, isDark && styles.memberAvatarDark]}>
+                      <Text style={styles.memberAvatarText}>
+                        {getUserInitials(member.id)}
+                      </Text>
+                    </View>
+                    <View style={styles.memberInfo}>
+                      <Text style={[styles.memberName, isDark && styles.memberNameDark]}>
+                        {member.name}
+                      </Text>
+                      <Text style={[styles.memberEmail, isDark && styles.memberEmailDark]}>
+                        {member.email}
+                      </Text>
+                    </View>
+                    {member.id === userData?.id && (
+                      <View style={[styles.youBadge, isDark && styles.youBadgeDark]}>
+                        <Text style={styles.youBadgeText}>You</Text>
+                      </View>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
+          )}
         </SettingSection>
       )}
 
@@ -1544,6 +1607,90 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   inviteCodeHintDark: {
+    color: '#666',
+  },
+  // Family Members Accordion
+  familyMembersList: {
+    marginTop: 8,
+    marginBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F5F5',
+  },
+  familyMembersListDark: {
+    borderTopColor: '#3C3C3C',
+  },
+  memberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F9F9F9',
+    marginBottom: 8,
+  },
+  memberItemDark: {
+    backgroundColor: '#1E1E1E',
+  },
+  memberAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#0a7ea4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  memberAvatarDark: {
+    backgroundColor: '#4FC3F7',
+  },
+  memberAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111',
+    marginBottom: 2,
+  },
+  memberNameDark: {
+    color: '#E6E1E5',
+  },
+  memberEmail: {
+    fontSize: 13,
+    color: '#666',
+  },
+  memberEmailDark: {
+    color: '#938F99',
+  },
+  youBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#E3F2FD',
+  },
+  youBadgeDark: {
+    backgroundColor: '#1E3A5F',
+  },
+  youBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0a7ea4',
+  },
+  emptyMembersText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    padding: 16,
+    fontStyle: 'italic',
+  },
+  emptyMembersTextDark: {
     color: '#666',
   },
 });
