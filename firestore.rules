@@ -46,6 +46,14 @@ service cloud.firestore {
       allow delete: if false;
     }
     
+    // Personal Notes - Users can only read/write their own notes
+    match /notes/{noteId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
     // Family data
     match /families/{familyId} {
       // Allow reading families (needed for invite code lookup and joining)

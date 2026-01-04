@@ -437,7 +437,7 @@ export default function SettingsScreen() {
         <SettingItem
           icon="person.fill"
           title="Developed By"
-          subtitle="FamilyHQ Team"
+          subtitle="Developed with ❤️ by Kibet from Isolated Solutions"
           showArrow={false}
         />
         <SettingItem
@@ -466,7 +466,7 @@ export default function SettingsScreen() {
       {/* Footer */}
       <View style={styles.footer}>
         <Text style={[styles.footerText, isDark && styles.footerTextDark]}>
-          FamilyHQ © 2024
+          FamilyHQ © {new Date().getFullYear()}
         </Text>
       </View>
 

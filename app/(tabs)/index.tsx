@@ -19,6 +19,7 @@ import { useTaskStore } from '@/src/stores/taskStore';
 import { useCalendarStore } from '@/src/stores/calendarStore';
 import { useBudgetStore } from '@/src/stores/budgetStore';
 import { useDirectExpenseStore } from '@/src/stores/directExpenseStore';
+import { useNotesStore } from '@/src/stores/notesStore';
 import { useFamilyData } from '@/src/hooks/useFamilyData';
 import { useFamilyMembers } from '@/src/hooks/useFamilyMembers';
 import { formatDate, formatDateForInput, formatRelativeTime, isToday, isPast, TimePeriod, isWithinTimePeriod, isBudgetActive, isDateInRange } from '@/src/utils';
@@ -33,6 +34,7 @@ import { BudgetCard } from '@/src/components/dashboard/BudgetCard';
 import { ShoppingCard } from '@/src/components/dashboard/ShoppingCard';
 import { TasksCard } from '@/src/components/dashboard/TasksCard';
 import { EventsCard } from '@/src/components/dashboard/EventsCard';
+import { NotesCard } from '@/src/components/dashboard/NotesCard';
 import { HeroSection } from '@/src/components/dashboard/HeroSection';
 
 export default function HomeScreen() {
@@ -67,10 +69,23 @@ export default function HomeScreen() {
       subscribeToAllItems(family.id);
     }
   }, [family?.id, shoppingLists.length, subscribeToAllItems]);
+
+  // Subscribe to personal notes
+  useEffect(() => {
+    if (userData?.id) {
+      const unsubscribe = subscribeToNotes(userData.id);
+      return () => {
+        unsubscribe();
+        clearNotes();
+      };
+    }
+  }, [userData?.id, subscribeToNotes, clearNotes]);
+
   const { tasks, addTask } = useTaskStore();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendarStore();
   const { categories: budgetCategories, activePeriod } = useBudgetStore();
   const { expenses: directExpenses, subscribeToExpenses, clearExpenses } = useDirectExpenseStore();
+  const { notes, subscribeToNotes, clearNotes } = useNotesStore();
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [budgetDetailModalVisible, setBudgetDetailModalVisible] = useState(false);
@@ -448,31 +463,30 @@ export default function HomeScreen() {
             style={[styles.actionButton, isDark && styles.actionButtonDark]}
             onPress={openAddShoppingModal}
             activeOpacity={0.7}>
-            <View style={[styles.actionIconContainer, { backgroundColor: isDark ? '#1E3A5F' : '#E3F2FD' }]}>
-              <IconSymbol name="cart.fill" size={24} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-            </View>
-            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Add Shopping</Text>
+            <IconSymbol name="cart.fill" size={18} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Shopping</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, isDark && styles.actionButtonDark]}
             onPress={openAddTaskModal}
             activeOpacity={0.7}>
-            <View style={[styles.actionIconContainer, { backgroundColor: isDark ? '#1B5E20' : '#E8F5E9' }]}>
-              <IconSymbol name="checkmark.square.fill" size={24} color={isDark ? '#66BB6A' : '#4CAF50'} />
-            </View>
-            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Add Task</Text>
+            <IconSymbol name="checkmark.square.fill" size={18} color={isDark ? '#66BB6A' : '#4CAF50'} />
+            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Task</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, isDark && styles.actionButtonDark]}
             onPress={openAddEventModal}
             activeOpacity={0.7}>
-            <View style={[styles.actionIconContainer, { backgroundColor: isDark ? '#4A148C' : '#F3E5F5' }]}>
-              <IconSymbol name="calendar" size={24} color={isDark ? '#AB47BC' : '#9C27B0'} />
-            </View>
-            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Add Event</Text>
+            <IconSymbol name="calendar" size={18} color={isDark ? '#AB47BC' : '#9C27B0'} />
+            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Event</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Notes Card */}
+        <View style={styles.notesSection}>
+          <NotesCard notes={notes} />
         </View>
       </ScrollView>
 
@@ -1703,45 +1717,38 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 24,
-    gap: 12,
+    paddingBottom: 20,
+    gap: 8,
   },
   actionButton: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 18,
-    paddingHorizontal: 8,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E8E8E8',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   actionButtonDark: {
     backgroundColor: '#2C2C2C',
     borderColor: '#3C3C3C',
   },
-  actionIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   actionLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: '#111',
-    textAlign: 'center',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   actionLabelDark: {
     color: '#E6E1E5',
+  },
+  notesSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   familyModeSelection: {
     gap: 16,

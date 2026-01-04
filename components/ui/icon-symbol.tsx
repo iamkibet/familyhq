@@ -64,6 +64,8 @@ const MAPPING: IconMapping = {
   'doc.text.fill': 'description',
   'text.alignleft': 'format-align-left',
   'hand.raised.fill': 'privacy-tip',
+  // Notes
+  'note.text': 'note',
   // Actions
   'arrow.right.square.fill': 'logout',
   'xmark.circle.fill': 'cancel',

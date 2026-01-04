@@ -84,6 +84,13 @@ export default function TabLayout() {
           href: null, // Hide from tab bar
         }}
       />
+      {/* Notes - Hidden from tab bar */}
+      <Tabs.Screen
+        name="notes"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
       <Tabs.Screen
         name="tasks"
         options={{

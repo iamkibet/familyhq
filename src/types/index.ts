@@ -102,3 +102,12 @@ export interface FamilyEvent {
   createdAt: Timestamp;
 }
 
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  userId: string; // Personal notes - only visible to the user who created them
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
