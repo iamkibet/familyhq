@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useAuthInit } from '@/src/hooks/useAuthInit';
+import { useThemeScheme } from '@/hooks/use-theme-scheme';
 
 /**
  * Component to guard routes based on authentication state
@@ -54,10 +55,24 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(navigationTimer);
   }, [currentUser, userData, family, loading, segments, isReady, router]);
 
+  const colorScheme = useThemeScheme();
+  const isDark = colorScheme === 'dark';
+
   if (loading || !isReady) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0a7ea4" />
+      <View style={[styles.loadingContainer, isDark && styles.loadingContainerDark]}>
+        <View style={styles.loadingContent}>
+          <View style={styles.logoContainer}>
+            <View style={[styles.logoCircle, isDark && styles.logoCircleDark]}>
+              <Text style={styles.logoText}>FH</Text>
+            </View>
+          </View>
+          <ActivityIndicator 
+            size="large" 
+            color={isDark ? '#4FC3F7' : '#0a7ea4'} 
+            style={styles.loader}
+          />
+        </View>
       </View>
     );
   }
@@ -70,7 +85,43 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingContainerDark: {
+    backgroundColor: '#1C1B1F',
+  },
+  loadingContent: {
+    alignItems: 'center',
+    gap: 24,
+  },
+  logoContainer: {
+    marginBottom: 8,
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#0a7ea4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0a7ea4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  logoCircleDark: {
+    backgroundColor: '#4FC3F7',
+    shadowColor: '#4FC3F7',
+  },
+  logoText: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  loader: {
+    marginTop: 8,
   },
 });
 

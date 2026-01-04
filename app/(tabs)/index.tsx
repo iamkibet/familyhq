@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
@@ -118,6 +119,7 @@ export default function HomeScreen() {
   });
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('thisMonth');
   const [activityFeedVisible, setActivityFeedVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const activeTasks = tasks.filter((t) => !t.completed).length;
   const completedTasks = tasks.filter((t) => t.completed).length;
@@ -504,12 +506,37 @@ export default function HomeScreen() {
   };
 
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Reload read activities
+      if (userData?.id) {
+        await loadReadActivities(userData.id);
+      }
+      // The useFamilyData hook already subscribes to real-time updates
+      // So we just need to wait a moment for the refresh animation
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [userData?.id, loadReadActivities]);
+
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={isDark ? '#4FC3F7' : '#0a7ea4'}
+            colors={['#0a7ea4']}
+          />
+        }>
         {/* Hero Section */}
         <HeroSection
           family={family}
@@ -568,6 +595,13 @@ export default function HomeScreen() {
         {/* Notes Card */}
         <View style={styles.notesSection}>
           <NotesCard notes={notes} />
+        </View>
+
+        {/* Motivational Quote */}
+        <View style={[styles.quoteSection, isDark && styles.quoteSectionDark]}>
+          <Text style={[styles.quoteText, isDark && styles.quoteTextDark]}>
+            "Together, we can achieve anything. Family is where life begins and love never ends."
+          </Text>
         </View>
       </ScrollView>
 
@@ -1847,6 +1881,27 @@ const styles = StyleSheet.create({
   notesSection: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  quoteSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+  },
+  quoteSectionDark: {
+    // Same styling, just for consistency
+  },
+  quoteText: {
+    fontSize: 16,
+    fontStyle: 'italic',
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    letterSpacing: 0.2,
+    maxWidth: '90%',
+  },
+  quoteTextDark: {
+    color: '#938F99',
   },
   familyModeSelection: {
     gap: 16,

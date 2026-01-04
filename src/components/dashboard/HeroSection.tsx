@@ -190,14 +190,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   notificationIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
     position: 'relative',
   },
   notificationBadge: {

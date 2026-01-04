@@ -315,17 +315,88 @@ expo start --clear
 - ✅ Restart your development server after creating/updating `.env`
 - ✅ Verify the API key in Firebase Console matches your `.env` file
 
-### "OAuth 2.0 Policy" / "App Blocked" Error
+### "OAuth 2.0 Policy" / "App Blocked" / "Error 400: invalid_request" Error
 
-- ✅ **Most Common Fix**: Add yourself as a test user in OAuth consent screen
-  1. Go to Google Cloud Console > APIs & Services > OAuth consent screen
-  2. Scroll to "Test users" section
-  3. Click "+ ADD USERS"
-  4. Add your Google account email
-  5. Save and try again
-- ✅ Make sure OAuth consent screen is configured (see Step 4 above)
-- ✅ App must be in "Testing" mode (not "In production") for development
-- ✅ Only test users can sign in until the app is verified by Google
+**This error means your app doesn't comply with Google's OAuth 2.0 security policies. Here's how to fix it:**
+
+#### ✅ Fix 1: Configure OAuth Consent Screen (CRITICAL)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Select your Firebase project
+3. Navigate to **APIs & Services** > **OAuth consent screen**
+
+4. **Check Publishing Status**:
+   - At the top, you should see "Publishing status: Testing" or "In production"
+   - For development, it MUST be "Testing" (not "In production")
+   - If it says "In production", click **BACK TO TESTING** (button at the top)
+
+5. **If you haven't configured the consent screen yet**:
+   - Click **CONFIGURE CONSENT SCREEN**
+   - Select **External** (unless using Google Workspace)
+   - Click **CREATE**
+   
+   **App Information**:
+   - App name: `FamilyHQ`
+   - User support email: Your email
+   - Developer contact information: Your email
+   - Click **SAVE AND CONTINUE**
+   
+   **Scopes** (should already be selected):
+   - `openid`
+   - `.../auth/userinfo.email`
+   - `.../auth/userinfo.profile`
+   - Click **SAVE AND CONTINUE**
+   
+   **Test users** (CRITICAL):
+   - Click **+ ADD USERS**
+   - Add your Google account email (the one you're using to sign in)
+   - Click **ADD**, then **SAVE AND CONTINUE**
+   - Review and click **BACK TO DASHBOARD**
+
+#### ✅ Fix 2: Add Redirect URI to OAuth Credentials
+
+1. Still in Google Cloud Console, go to **APIs & Services** > **Credentials**
+2. Find your **OAuth 2.0 Client ID** (type: "Web application")
+3. Click the **Edit** (pencil) icon
+4. Under **Authorized redirect URIs**, click **+ ADD URI**
+5. **Get your exact redirect URI**:
+   - Run your app: `npm start` or `expo start`
+   - Try to sign in with Google
+   - Look at your console/terminal - you'll see: `🔗 OAuth Redirect URI: https://auth.expo.io/@your-username/FamilyHQ`
+   - Copy that EXACT URI (must match exactly including `https://`)
+6. Paste it into the "Authorized redirect URIs" field
+7. Click **SAVE**
+
+#### ✅ Fix 3: Verify App is in Testing Mode
+
+1. Go back to **OAuth consent screen**
+2. At the top, check "Publishing status"
+3. If it says "In production", you have two options:
+   - **Option A (Recommended for dev)**: Click **BACK TO TESTING**
+   - **Option B**: Submit your app for verification (takes weeks, only for production apps)
+
+#### ✅ Fix 4: Wait and Clear Cache
+
+- After making changes, wait **5-10 minutes** (Google caches OAuth settings)
+- Clear your browser cache or try in incognito/private mode
+- Restart your Expo development server: `expo start --clear`
+
+#### Common Issues:
+
+- ❌ **"Access blocked: This app's request is invalid"**: App is in Production mode but not verified → Switch to Testing mode
+- ❌ **"Access blocked: Unverified app"**: Your email is not in test users list → Add yourself as test user (Fix 1, step 5)
+- ❌ **"redirect_uri_mismatch"**: Redirect URI doesn't match → Add exact URI from console output (Fix 2)
+- ❌ **"invalid_client"**: Wrong client ID → Check that you're using Web Client ID (not iOS/Android)
+
+#### Quick Checklist:
+
+- [ ] OAuth consent screen is configured (Step 4 above)
+- [ ] App is in "Testing" mode (not "In production")
+- [ ] Your Google account email is in the "Test users" list
+- [ ] Redirect URI is added to OAuth credentials (exact match from console)
+- [ ] Using the correct Web Client ID (from Firebase Console > Authentication > Google)
+- [ ] Waited 5-10 minutes after making changes
+- [ ] Cleared cache and restarted development server
 
 ### "Missing or Insufficient Permissions" Error (Firestore)
 

@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
-    height: 400,
+    maxHeight: 400,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -158,10 +158,10 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   content: {
-    flex: 1,
+    // Removed flex: 1 to allow content-based height
   },
   emptyContainer: {
-    flex: 1,
+    minHeight: 120,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
