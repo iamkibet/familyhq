@@ -73,17 +73,6 @@ export default function HomeScreen() {
     }
   }, [family?.id, shoppingLists.length, subscribeToAllItems]);
 
-  // Subscribe to personal notes
-  useEffect(() => {
-    if (userData?.id) {
-      const unsubscribe = subscribeToNotes(userData.id);
-      return () => {
-        unsubscribe();
-        clearNotes();
-      };
-    }
-  }, [userData?.id, subscribeToNotes, clearNotes]);
-
   // Load read activities
   const { readActivityIds, loadReadActivities, markAsRead } = useReadActivitiesStore();
   useEffect(() => {
@@ -97,6 +86,17 @@ export default function HomeScreen() {
   const { categories: budgetCategories, activePeriod } = useBudgetStore();
   const { expenses: directExpenses, subscribeToExpenses, clearExpenses } = useDirectExpenseStore();
   const { notes, subscribeToNotes, clearNotes } = useNotesStore();
+
+  // Subscribe to personal notes
+  useEffect(() => {
+    if (userData?.id) {
+      const unsubscribe = subscribeToNotes(userData.id);
+      return () => {
+        unsubscribe();
+        clearNotes();
+      };
+    }
+  }, [userData?.id, subscribeToNotes, clearNotes]);
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [budgetDetailModalVisible, setBudgetDetailModalVisible] = useState(false);
@@ -600,7 +600,7 @@ export default function HomeScreen() {
         {/* Motivational Quote */}
         <View style={[styles.quoteSection, isDark && styles.quoteSectionDark]}>
           <Text style={[styles.quoteText, isDark && styles.quoteTextDark]}>
-            "Together, we can achieve anything. Family is where life begins and love never ends."
+            &ldquo;Together, we can achieve anything. Family is where life begins and love never ends.&rdquo;
           </Text>
         </View>
       </ScrollView>
@@ -1989,5 +1989,67 @@ const styles = StyleSheet.create({
   },
   familyFormBackButtonTextDark: {
     color: '#4FC3F7',
+  },
+  inviteCodeContainer: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  inviteCodeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111',
+    textAlign: 'center',
+  },
+  inviteCodeLabelDark: {
+    color: '#E6E1E5',
+  },
+  inviteCodeBox: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+  },
+  inviteCodeBoxDark: {
+    backgroundColor: '#2C2C2C',
+    borderColor: '#3C3C3C',
+  },
+  inviteCodeText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0a7ea4',
+    letterSpacing: 2,
+  },
+  inviteCodeTextDark: {
+    color: '#4FC3F7',
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0a7ea4',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+  },
+  copyButtonDark: {
+    backgroundColor: '#4FC3F7',
+  },
+  copyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  inviteCodeHint: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  inviteCodeHintDark: {
+    color: '#938F99',
   },
 });

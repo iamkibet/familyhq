@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   modalTitleDark: {
     color: '#E6E1E5',
   },
-  closeButton: {
+  closeButtonSmall: {
     padding: 4,
   },
   titleInput: {

@@ -1,8 +1,24 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { initializeAuth, getAuth, getReactNativePersistence, Auth } from 'firebase/auth';
+import { initializeAuth, getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Import React Native persistence - Firebase v12 uses a different import path
+let getReactNativePersistence: any;
+try {
+  // Try the standard import first
+  const authModule = require('firebase/auth');
+  getReactNativePersistence = authModule.getReactNativePersistence;
+} catch (e) {
+  // If that fails, try alternative import
+  try {
+    getReactNativePersistence = require('firebase/auth/react-native').getReactNativePersistence;
+  } catch (e2) {
+    // If both fail, we'll use getAuth without persistence
+    console.warn('getReactNativePersistence not available, using default auth');
+  }
+}
 
 // Firebase configuration
 // Get this from Firebase Console > Project Settings > General > Your apps
@@ -54,13 +70,13 @@ if (getApps().length === 0) {
   // Initialize Auth with platform-specific persistence
   // getReactNativePersistence is only available on native platforms, not web
   try {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== 'web' && getReactNativePersistence) {
       // React Native (iOS/Android) - use AsyncStorage persistence
       auth = initializeAuth(app, {
         persistence: getReactNativePersistence(AsyncStorage),
       });
     } else {
-      // Web platform - use default persistence (localStorage)
+      // Web platform or if persistence not available - use default persistence
       auth = getAuth(app);
     }
   } catch (error: any) {
@@ -68,7 +84,9 @@ if (getApps().length === 0) {
     if (error.code === 'auth/already-initialized') {
       auth = getAuth(app);
     } else {
-      throw error;
+      // If persistence setup fails, fall back to default auth
+      console.warn('Failed to initialize auth with persistence, using default:', error);
+      auth = getAuth(app);
     }
   }
   db = getFirestore(app);

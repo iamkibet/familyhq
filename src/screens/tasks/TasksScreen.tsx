@@ -585,5 +585,11 @@ const styles = StyleSheet.create({
   creatorNameDark: {
     color: '#938F99',
   },
+  taskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
 });
 

@@ -13,6 +13,7 @@ import {
 import { db } from './firebase';
 import { FamilyEvent } from '@/src/types';
 import { COLLECTIONS } from '@/src/constants';
+import { isToday } from '@/src/utils';
 import * as notificationService from './notificationService';
 import * as authService from './authService';
 

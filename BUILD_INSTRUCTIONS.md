@@ -122,9 +122,26 @@ eas build --platform android --profile preview
 - Run `eas login` and create an Expo account if needed
 
 ### Build fails
-- Check that all environment variables are set in `.env`
-- Make sure `app.json` is valid
-- Check the build logs in the Expo dashboard
+
+**Gradle Build Failed Error:**
+If you see "Gradle build failed with unknown error", try these fixes:
+
+1. **Check the build logs** - Click the logs link provided to see the exact error
+2. **Add versionCode** - Make sure `app.json` has `"android": { "versionCode": 1 }`
+3. **Clear cache and rebuild**:
+   ```bash
+   eas build --platform android --profile preview --clear-cache
+   ```
+4. **Check for missing dependencies** - Review the logs for missing packages
+5. **Verify app.json is valid** - Run `npx expo-doctor` to check for issues
+6. **Check environment variables** - Make sure all `.env` variables are set
+7. **Update Expo SDK** - Make sure you're using a compatible Expo version
+
+Common fixes:
+- ✅ Add `"versionCode": 1` to `android` section in `app.json`
+- ✅ Run `npx expo install --fix` to fix dependency versions
+- ✅ Try building with `--clear-cache` flag
+- ✅ Check build logs for specific error messages
 
 ### APK won't install
 - Enable "Install from Unknown Sources" in Android settings

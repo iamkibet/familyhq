@@ -4,47 +4,65 @@
     "slug": "FamilyHQ",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "familyhq",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
+    "icon": "./assets/images/icon.png",
+
+    "splash": {
+      "image": "./assets/images/splashscreen_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a7ea4"
+    },
+
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.familyhq.app",
       "icon": "./assets/images/icon.png"
     },
+
     "android": {
       "package": "com.familyhq.app",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
+        "backgroundColor": "#E6F4FE",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
+
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
+          "image": "./assets/images/splashscreen_logo.png",
+          "resizeMode": "contain",
           "backgroundColor": "#0a7ea4",
           "dark": {
+            "image": "./assets/images/splashscreen_logo.png",
             "backgroundColor": "#1C1B1F"
-          },
-          "resizeMode": "contain"
+          }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
+
+    "assetBundlePatterns": ["**/*"],
+
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
+
     "extra": {
       "router": {},
       "eas": {
