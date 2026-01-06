@@ -157,6 +157,7 @@ const styles = StyleSheet.create({
   },
   timelineItem: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
@@ -167,6 +168,7 @@ const styles = StyleSheet.create({
   timelineLeft: {
     width: 24,
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 16,
   },
   timelineDot: {
@@ -176,13 +178,13 @@ const styles = StyleSheet.create({
   },
   timelineContent: {
     flex: 1,
-    paddingTop: 2,
+    justifyContent: 'center',
   },
   eventHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
+    alignItems: 'center', // Align items vertically centered
+    gap: 8,
   },
   eventTitle: {
     fontSize: 16,
@@ -190,6 +192,7 @@ const styles = StyleSheet.create({
     color: '#111',
     lineHeight: 22,
     letterSpacing: -0.2,
+    flex: 1, // Allow title to take available space
   },
   eventTitleDark: {
     color: '#E6E1E5',
@@ -198,7 +201,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    alignSelf: 'center', // Center align the badge vertically
+    minWidth: 70, // Slightly wider for alignment
+    alignItems: 'center', // Center text inside badge
+    justifyContent: 'center',
+    marginLeft: 8,
   },
   dateText: {
     fontSize: 11,

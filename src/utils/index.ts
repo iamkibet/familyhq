@@ -74,7 +74,7 @@ export function isPast(date: string | Date): boolean {
 }
 
 /**
- * Format relative time (e.g., "2 days ago", "Just now", "Created on Jan 3, 2024")
+ * Format relative time (e.g., "Just now", "5 minutes ago", "Yesterday", "Jan 3, 2024")
  */
 export function formatRelativeTime(timestamp: { toMillis: () => number } | Date | string | null | undefined): string {
   // Handle null/undefined
@@ -118,14 +118,11 @@ export function formatRelativeTime(timestamp: { toMillis: () => number } | Date 
     return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
   } else if (diffHours < 24) {
     return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
-  } else if (diffDays < 7) {
-    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
-  } else if (diffDays < 30) {
-    const weeks = Math.floor(diffDays / 7);
-    return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+  } else if (diffDays === 1) {
+    return 'Yesterday';
   } else {
-    // For older dates, show the actual date
-    return `Created ${formatDate(date)}`;
+    // For anything older than yesterday, show the actual date
+    return formatDate(date);
   }
 }
 

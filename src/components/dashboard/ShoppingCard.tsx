@@ -1,9 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useThemeScheme } from '@/hooks/use-theme-scheme';
-import { ShoppingList, ShoppingItem } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useThemeScheme } from '@/hooks/use-theme-scheme';
+import { ShoppingItem, ShoppingList } from '@/src/types';
+import { Kalam_400Regular } from '@expo-google-fonts/kalam';
+import { useFonts } from 'expo-font';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface ShoppingCardProps {
   activeLists: ShoppingList[];
@@ -14,6 +16,11 @@ export function ShoppingCard({ activeLists, allItems }: ShoppingCardProps) {
   const router = useRouter();
   const colorScheme = useThemeScheme();
   const isDark = colorScheme === 'dark';
+  
+  // Load handwriting font (similar to Chalkduster - works on both iOS and Android)
+  const [fontsLoaded] = useFonts({
+    Kalam_400Regular,
+  });
 
   // Get all items that need to be bought across all lists
   const itemsToBuy = allItems
@@ -93,7 +100,11 @@ export function ShoppingCard({ activeLists, allItems }: ShoppingCardProps) {
                           {index + 1}.
                         </Text>
                         <View style={styles.itemContent}>
-                          <Text style={[styles.itemText, isDark && styles.itemTextDark]}>
+                          <Text style={[
+                            styles.itemText, 
+                            isDark && styles.itemTextDark,
+                            fontsLoaded && { fontFamily: 'Kalam_400Regular' } // Use same font on both platforms
+                          ]}>
                             {item.name}
                           </Text>
                           {item.quantity > 1 && (
@@ -202,7 +213,7 @@ const styles = StyleSheet.create({
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center', // Center align number and text
     paddingVertical: 4,
     gap: 8,
   },
@@ -219,15 +230,16 @@ const styles = StyleSheet.create({
   },
   itemContent: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center', // Center align text and quantity
     gap: 6,
     flex: 1,
   },
   itemText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '400',
     color: '#333',
-    fontFamily: 'System',
+    fontFamily: 'System', // Fallback - will be overridden by Kalam when font loads (same on both platforms)
+    letterSpacing: 0.3,
     lineHeight: 24,
     flex: 1,
   },
