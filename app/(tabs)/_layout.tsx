@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeScheme } from '@/hooks/use-theme-scheme';
@@ -8,6 +9,11 @@ import { useThemeScheme } from '@/hooks/use-theme-scheme';
 export default function TabLayout() {
   const colorScheme = useThemeScheme();
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
+
+  // Calculate bottom padding for Android navigation bar
+  const bottomPadding = Platform.OS === 'android' ? Math.max(insets.bottom, 10) : (Platform.OS === 'ios' ? 30 : 10);
+  const tabBarHeight = Platform.OS === 'ios' ? 90 : (72 + insets.bottom);
 
   return (
     <Tabs
@@ -38,8 +44,8 @@ export default function TabLayout() {
           shadowOffset: { width: 0, height: -3 },
           shadowOpacity: 0.12,
           shadowRadius: 20,
-          height: Platform.OS === 'ios' ? 90 : 72,
-          paddingBottom: Platform.OS === 'ios' ? 30 : 10,
+          height: tabBarHeight,
+          paddingBottom: bottomPadding,
           paddingTop: 10,
         },
       }}>

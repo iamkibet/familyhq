@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { useThemeScheme } from '@/hooks/use-theme-scheme';
@@ -34,15 +35,17 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AuthGuard>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="auth" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      </AuthGuard>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AuthGuard>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="auth" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        </Stack>
+        </AuthGuard>
+        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
