@@ -14,23 +14,10 @@ import { AuthGuard } from '@/src/components/AuthGuard';
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
 export default function RootLayout() {
   const colorScheme = useThemeScheme();
 
   useEffect(() => {
-    // Hide splash screen once the app is ready
-    const hideSplash = async () => {
-      try {
-        await SplashScreen.hideAsync();
-      } catch (e) {
-        // Ignore errors
-      }
-    };
-
     // Set navigation bar appearance for Android
     const setNavigationBarStyle = async () => {
       if (Platform.OS === 'android') {
@@ -49,12 +36,20 @@ export default function RootLayout() {
       }
     };
 
-    // Small delay to ensure smooth transition
-    const timer = setTimeout(() => {
-      hideSplash();
-      setNavigationBarStyle();
-    }, 500);
-    return () => clearTimeout(timer);
+    // Hide splash screen after a minimum display time for better UX
+    // The AuthGuard will handle the loading state after splash screen hides
+    const hideSplash = async () => {
+      try {
+        // Wait a bit longer to ensure smooth transition
+        await new Promise(resolve => setTimeout(resolve, 800));
+        await SplashScreen.hideAsync();
+        setNavigationBarStyle();
+      } catch (e) {
+        // Ignore errors
+      }
+    };
+
+    hideSplash();
   }, [colorScheme]);
 
   return (

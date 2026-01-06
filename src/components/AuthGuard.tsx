@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Animated } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useAuthInit } from '@/src/hooks/useAuthInit';
@@ -14,6 +14,25 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const { currentUser, userData, family, loading } = useAuthStore();
   const [isReady, setIsReady] = useState(false);
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const scaleAnim = useState(new Animated.Value(0.8))[0];
+
+  // Animate loading screen
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, scaleAnim]);
 
   // Wait for router to be ready before attempting navigation
   useEffect(() => {
@@ -61,18 +80,31 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading || !isReady) {
     return (
       <View style={[styles.loadingContainer, isDark && styles.loadingContainerDark]}>
-        <View style={styles.loadingContent}>
+        <Animated.View 
+          style={[
+            styles.loadingContent,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}>
           <View style={styles.logoContainer}>
-            <View style={[styles.logoCircle, isDark && styles.logoCircleDark]}>
+            <Animated.View 
+              style={[
+                styles.logoCircle,
+                isDark && styles.logoCircleDark,
+              ]}>
               <Text style={styles.logoText}>FH</Text>
-            </View>
+            </Animated.View>
           </View>
+          <Text style={[styles.appName, isDark && styles.appNameDark]}>FamilyHQ</Text>
+          <Text style={[styles.tagline, isDark && styles.taglineDark]}>Your Family, Organized</Text>
           <ActivityIndicator 
             size="large" 
             color={isDark ? '#4FC3F7' : '#0a7ea4'} 
             style={styles.loader}
           />
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -92,36 +124,56 @@ const styles = StyleSheet.create({
   },
   loadingContent: {
     alignItems: 'center',
-    gap: 24,
+    gap: 16,
   },
   logoContainer: {
     marginBottom: 8,
   },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: '#0a7ea4',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#0a7ea4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
   },
   logoCircleDark: {
     backgroundColor: '#4FC3F7',
     shadowColor: '#4FC3F7',
   },
   logoText: {
-    fontSize: 32,
+    fontSize: 40,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 1,
+    letterSpacing: 2,
+  },
+  appName: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#111',
+    letterSpacing: 0.5,
+    marginTop: 8,
+  },
+  appNameDark: {
+    color: '#E6E1E5',
+  },
+  tagline: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#666',
+    letterSpacing: 0.3,
+    marginTop: -8,
+  },
+  taglineDark: {
+    color: '#938F99',
   },
   loader: {
-    marginTop: 8,
+    marginTop: 24,
   },
 });
 
