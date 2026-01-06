@@ -10,7 +10,7 @@ export interface Currency {
 
 export const CURRENCIES: Currency[] = [
   { code: 'USD', name: 'US Dollar', symbol: '$', locale: 'en-US' },
-  { code: 'EUR', name: 'Euro', symbol: '€', locale: 'en-EU' },
+  { code: 'EUR', name: 'Euro', symbol: '€', locale: 'de-DE' },
   { code: 'GBP', name: 'British Pound', symbol: '£', locale: 'en-GB' },
   { code: 'JPY', name: 'Japanese Yen', symbol: '¥', locale: 'ja-JP' },
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', locale: 'zh-CN' },

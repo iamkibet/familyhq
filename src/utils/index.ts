@@ -13,19 +13,65 @@ export function generateInviteCode(): string {
  * 
  * Note: For React components, use the `useFormatCurrency` hook instead to automatically use the selected currency.
  */
-export function formatCurrency(amount: number, currencyCode: string = 'USD', locale: string = 'en-US'): string {
+export function formatCurrency(amount: number, currencyCode: string = 'USD', locale: string = 'en-US', fallbackSymbol?: string): string {
   try {
-    return new Intl.NumberFormat(locale, {
+    // Try to format with the provided locale
+    const formatted = new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: currencyCode,
     }).format(amount);
+    return formatted;
   } catch (error) {
-    // Fallback to USD if locale/currency is invalid
-    console.warn('Invalid currency format, falling back to USD:', error);
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    // If formatting fails, try with a more generic locale based on currency code
+    try {
+      // Map currency codes to common locales if the provided locale fails
+      const localeMap: Record<string, string> = {
+        'EUR': 'de-DE',
+        'GBP': 'en-GB',
+        'JPY': 'ja-JP',
+        'CNY': 'zh-CN',
+        'INR': 'en-IN',
+        'AUD': 'en-AU',
+        'CAD': 'en-CA',
+        'CHF': 'de-CH',
+        'SEK': 'sv-SE',
+        'NOK': 'nb-NO',
+        'DKK': 'da-DK',
+        'PLN': 'pl-PL',
+        'RUB': 'ru-RU',
+        'BRL': 'pt-BR',
+        'MXN': 'es-MX',
+        'ZAR': 'en-ZA',
+        'KRW': 'ko-KR',
+        'SGD': 'en-SG',
+        'HKD': 'en-HK',
+        'NZD': 'en-NZ',
+        'TRY': 'tr-TR',
+        'AED': 'ar-AE',
+        'SAR': 'ar-SA',
+        'KES': 'en-KE',
+        'NGN': 'en-NG',
+        'EGP': 'ar-EG',
+      };
+      
+      const fallbackLocale = localeMap[currencyCode] || 'en-US';
+      return new Intl.NumberFormat(fallbackLocale, {
+        style: 'currency',
+        currency: currencyCode,
+      }).format(amount);
+    } catch (fallbackError) {
+      // Last resort: use fallback symbol or default to USD symbol
+      console.warn('Currency formatting failed, using manual format:', fallbackError);
+      if (fallbackSymbol) {
+        // Use the provided symbol with manual formatting
+        return `${fallbackSymbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+      // Final fallback to USD
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(amount);
+    }
   }
 }
 

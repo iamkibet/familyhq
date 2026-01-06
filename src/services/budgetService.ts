@@ -449,7 +449,7 @@ export async function addDirectExpense(
       const currency = useCurrencyStore.getState().currency;
       notificationService.scheduleNotification(
         'Direct Expense Added',
-        `${userName} added an expense: ${description} (${formatCurrency(amount, currency.code, currency.locale)}) to ${categoryName}`
+        `${userName} added an expense: ${description} (${formatCurrency(amount, currency.code, currency.locale, currency.symbol)}) to ${categoryName}`
       ).catch((error) => {
         console.warn('Failed to send notification:', error);
       });

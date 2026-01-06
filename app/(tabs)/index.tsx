@@ -507,21 +507,65 @@ export default function HomeScreen() {
 
 
   const onRefresh = useCallback(async () => {
+    if (!family?.id) return;
+    
     setRefreshing(true);
     try {
+      // Re-subscribe to all data sources to force fresh data fetch
+      // This ensures we get the latest data from Firestore
+      const refreshPromises: Promise<void>[] = [];
+      
+      // Re-subscribe to shopping lists and items
+      subscribeToLists(family.id);
+      if (shoppingLists.length > 0) {
+        subscribeToAllItems(family.id);
+      }
+      
+      // Re-subscribe to tasks
+      const taskStore = useTaskStore.getState();
+      taskStore.subscribeToTasks(family.id);
+      
+      // Re-subscribe to events
+      const calendarStore = useCalendarStore.getState();
+      calendarStore.subscribeToEvents(family.id);
+      
+      // Re-subscribe to budget periods (categories will auto-subscribe when period loads)
+      const budgetStore = useBudgetStore.getState();
+      budgetStore.subscribeToPeriods(family.id);
+      
+      // Re-subscribe to expenses
+      subscribeToExpenses(family.id);
+      
+      // Re-subscribe to notes
+      if (userData?.id) {
+        subscribeToNotes(userData.id);
+      }
+      
       // Reload read activities
       if (userData?.id) {
-        await loadReadActivities(userData.id);
+        refreshPromises.push(loadReadActivities(userData.id));
       }
-      // The useFamilyData hook already subscribes to real-time updates
-      // So we just need to wait a moment for the refresh animation
-      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Wait for all refresh operations to complete
+      await Promise.all(refreshPromises);
+      
+      // Give a minimum time for the refresh animation to be visible
+      await new Promise(resolve => setTimeout(resolve, 800));
     } catch (error) {
-      console.error('Error refreshing:', error);
+      console.error('Error refreshing data:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [userData?.id, loadReadActivities]);
+  }, [
+    family?.id,
+    userData?.id,
+    shoppingLists.length,
+    subscribeToLists,
+    subscribeToAllItems,
+    subscribeToExpenses,
+    subscribeToNotes,
+    loadReadActivities,
+  ]);
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
@@ -534,7 +578,11 @@ export default function HomeScreen() {
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={isDark ? '#4FC3F7' : '#0a7ea4'}
-            colors={['#0a7ea4']}
+            colors={isDark ? ['#4FC3F7'] : ['#0a7ea4']}
+            progressBackgroundColor={isDark ? '#2C2C2C' : '#FFFFFF'}
+            size="large"
+            title="Refreshing..."
+            titleColor={isDark ? '#4FC3F7' : '#0a7ea4'}
           />
         }>
         {/* Hero Section */}

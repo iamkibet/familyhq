@@ -8,7 +8,8 @@ export function useFormatCurrency() {
   const { currency } = useCurrencyStore();
   
   return (amount: number): string => {
-    return formatCurrencyUtil(amount, currency.code, currency.locale);
+    // Pass the currency symbol as fallback in case formatting fails
+    return formatCurrencyUtil(amount, currency.code, currency.locale, currency.symbol);
   };
 }
 
