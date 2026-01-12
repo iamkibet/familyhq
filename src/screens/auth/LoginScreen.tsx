@@ -30,7 +30,11 @@ export default function LoginScreen() {
 
     try {
       await signIn(email.trim(), password);
-      // Navigation will be handled by auth state change
+      // On web, manually navigate to dashboard after successful login
+      if (Platform.OS === 'web') {
+        router.replace('/dashboard');
+      }
+      // On mobile, navigation will be handled by auth state change
     } catch (err: any) {
       Alert.alert('Login Failed', err.message || 'Invalid email or password');
     }

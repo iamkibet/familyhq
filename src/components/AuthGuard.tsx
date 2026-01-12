@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text, Animated } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Animated, Platform } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useAuthInit } from '@/src/hooks/useAuthInit';
@@ -63,7 +63,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           router.push('/auth/family-setup');
         } else if (isAuthenticated && hasFamily && inAuthGroup) {
           // Redirect to home if authenticated and has family
-          router.push('/(tabs)');
+          // Web goes to /dashboard, mobile goes to /(tabs)
+          router.push(Platform.OS === 'web' ? '/dashboard' : '/(tabs)');
         }
       } catch (error) {
         // Silently handle navigation errors (router might not be ready)

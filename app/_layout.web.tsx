@@ -2,7 +2,7 @@ import React from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { WebNavBar } from '@/src/components/web/WebNavBar.web';
 import { WebFooter } from '@/src/components/web/WebFooter.web';
 import { getWebTheme } from '@/src/components/web/WebTheme';
@@ -22,7 +22,11 @@ export default function RootLayoutWeb() {
         <View style={[styles.page, { backgroundColor: theme.colors.bg }]}>
           {showMarketingChrome && <WebNavBar />}
 
-          <View style={styles.content}>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="about" />
@@ -32,9 +36,7 @@ export default function RootLayoutWeb() {
               <Stack.Screen name="dashboard" />
               <Stack.Screen name="auth" />
             </Stack>
-          </View>
-
-          {showMarketingChrome && <WebFooter />}
+          </ScrollView>
         </View>
       </ThemeProvider>
     </SafeAreaProvider>
@@ -45,8 +47,11 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
 });
 

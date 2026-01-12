@@ -27,7 +27,7 @@ export function WebCard({ children }: { children: React.ReactNode }) {
 function createStyles(theme: WebThemeShape) {
   return StyleSheet.create({
     page: {
-      flex: 1,
+      minHeight: '100%',
       backgroundColor: theme.colors.bg,
     },
     container: {

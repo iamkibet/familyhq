@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeScheme } from '@/hooks/use-theme-scheme';
+import { HapticTab } from '@/components/haptic-tab';
 
 export default function TabLayout() {
   const colorScheme = useThemeScheme();
@@ -58,6 +59,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <IconSymbol size={focused ? 32 : 28} name={focused ? 'house.fill' : 'house'} color={color} />
           ),
+          tabBarButton: HapticTab,
         }}
       />
       <Tabs.Screen
@@ -67,6 +69,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <IconSymbol size={focused ? 32 : 28} name={focused ? 'cart.fill' : 'cart'} color={color} />
           ),
+          tabBarButton: HapticTab,
         }}
       />
 
@@ -86,6 +89,7 @@ export default function TabLayout() {
               color={color}
             />
           ),
+          tabBarButton: HapticTab,
         }}
       />
       <Tabs.Screen
@@ -95,6 +99,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <IconSymbol size={focused ? 32 : 28} name={focused ? 'gearshape.fill' : 'gearshape'} color={color} />
           ),
+          tabBarButton: HapticTab,
         }}
       />
     </Tabs>

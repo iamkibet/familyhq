@@ -7,6 +7,7 @@ import { useDirectExpenseStore } from '@/src/stores/directExpenseStore';
 import { useShoppingStore } from '@/src/stores/shoppingStore';
 import { ShoppingItem, ShoppingList } from '@/src/types';
 import { formatDate } from '@/src/utils';
+import * as budgetService from '@/src/services/budgetService';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -53,6 +54,7 @@ export default function ShoppingListScreen() {
 
   const [listModalVisible, setListModalVisible] = useState(false);
   const [itemModalVisible, setItemModalVisible] = useState(false);
+  const [directExpenseModalVisible, setDirectExpenseModalVisible] = useState(false);
   const [editingList, setEditingList] = useState<ShoppingList | null>(null);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [listFormData, setListFormData] = useState({ name: '' });
@@ -62,6 +64,12 @@ export default function ShoppingListScreen() {
     estimatedPrice: '0',
     budgetCategoryName: budgetCategories[0]?.name || '',
   });
+  const [directExpenseFormData, setDirectExpenseFormData] = useState({
+    description: '',
+    amount: '',
+    budgetCategoryName: budgetCategories[0]?.name || '',
+  });
+  const [isAddingExpense, setIsAddingExpense] = useState(false);
 
   // Subscribe to lists and expenses when family is available
   useEffect(() => {
@@ -95,6 +103,17 @@ export default function ShoppingListScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budgetCategories]);
 
+  // Update direct expense form when budget categories are loaded
+  useEffect(() => {
+    if (budgetCategories.length > 0 && !directExpenseFormData.budgetCategoryName) {
+      setDirectExpenseFormData(prev => ({
+        ...prev,
+        budgetCategoryName: budgetCategories[0].name,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgetCategories]);
+
   const resetListForm = () => {
     setListFormData({ name: '' });
     setEditingList(null);
@@ -108,6 +127,14 @@ export default function ShoppingListScreen() {
       budgetCategoryName: budgetCategories[0]?.name || '',
     });
     setEditingItem(null);
+  };
+
+  const resetDirectExpenseForm = () => {
+    setDirectExpenseFormData({
+      description: '',
+      amount: '',
+      budgetCategoryName: budgetCategories[0]?.name || '',
+    });
   };
 
   const openAddListModal = () => {
@@ -135,6 +162,67 @@ export default function ShoppingListScreen() {
       budgetCategoryName: item.budgetCategoryName,
     });
     setItemModalVisible(true);
+  };
+
+  const openAddDirectExpenseModal = () => {
+    console.log('openAddDirectExpenseModal called');
+    if (!budgetCategories || budgetCategories.length === 0) {
+      Alert.alert('Error', 'Please create a budget category first in the Budget screen.');
+      return;
+    }
+    resetDirectExpenseForm();
+    console.log('Setting directExpenseModalVisible to true');
+    setDirectExpenseModalVisible(true);
+  };
+
+  const handleMainFabPress = () => {
+    if (!selectedListId) {
+      // In lists overview - show options to create list or add expense
+      Alert.alert(
+        'Add',
+        'What would you like to add?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'New List', 
+            onPress: () => {
+              console.log('New List pressed');
+              openAddListModal();
+            }
+          },
+          { 
+            text: 'Direct Expense', 
+            onPress: () => {
+              console.log('Direct Expense pressed');
+              openAddDirectExpenseModal();
+            }
+          },
+        ]
+      );
+    } else {
+      // In list view - show options to add item or add expense
+      Alert.alert(
+        'Add',
+        'What would you like to add?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Shopping Item', 
+            onPress: () => {
+              console.log('Shopping Item pressed');
+              openAddItemModal();
+            }
+          },
+          { 
+            text: 'Direct Expense', 
+            onPress: () => {
+              console.log('Direct Expense pressed');
+              openAddDirectExpenseModal();
+            }
+          },
+        ]
+      );
+    }
   };
 
   const handleSaveList = async () => {
@@ -247,6 +335,46 @@ export default function ShoppingListScreen() {
     }
   };
 
+  const handleSaveDirectExpense = async () => {
+    if (!directExpenseFormData.description.trim()) {
+      Alert.alert('Error', 'Please enter a description');
+      return;
+    }
+
+    if (!directExpenseFormData.amount.trim() || parseFloat(directExpenseFormData.amount) <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    if (!directExpenseFormData.budgetCategoryName) {
+      Alert.alert('Error', 'Please select a budget category');
+      return;
+    }
+
+    if (!family?.id || !userData) {
+      Alert.alert('Error', 'Family not found');
+      return;
+    }
+
+    setIsAddingExpense(true);
+    try {
+      await budgetService.addDirectExpense(
+        family.id,
+        directExpenseFormData.budgetCategoryName,
+        parseFloat(directExpenseFormData.amount),
+        directExpenseFormData.description.trim(),
+        userData.id
+      );
+      setDirectExpenseModalVisible(false);
+      resetDirectExpenseForm();
+      Alert.alert('Success', 'Direct expense added successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to add direct expense');
+    } finally {
+      setIsAddingExpense(false);
+    }
+  };
+
   const totalEstimated = items.reduce((sum, item) => {
     return sum + (item.isBought ? 0 : item.estimatedPrice * item.quantity);
   }, 0);
@@ -342,10 +470,20 @@ export default function ShoppingListScreen() {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
         <View style={[styles.header, isDark && styles.headerDark]}>
-          <Text style={[styles.title, isDark && styles.titleDark]}>Shopping</Text>
-          <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-            {lists.length} {lists.length === 1 ? 'list' : 'lists'}
-          </Text>
+          <View style={styles.headerTop}>
+            <View style={styles.headerContent}>
+              <Text style={[styles.title, isDark && styles.titleDark]}>Shopping</Text>
+              <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
+                {lists.length} {lists.length === 1 ? 'list' : 'lists'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={openAddDirectExpenseModal}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <IconSymbol name="dollarsign.circle.fill" size={24} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {listsLoading && lists.length === 0 ? (
@@ -368,10 +506,10 @@ export default function ShoppingListScreen() {
           />
         )}
 
-        {/* Simple FAB */}
+        {/* FAB */}
         <TouchableOpacity
           style={[styles.fab, isDark && styles.fabDark]}
-          onPress={openAddListModal}
+          onPress={handleMainFabPress}
           activeOpacity={0.8}>
           <IconSymbol name="plus" size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -415,6 +553,94 @@ export default function ShoppingListScreen() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* Direct Expense Modal */}
+        <Modal
+          visible={directExpenseModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setDirectExpenseModalVisible(false)}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}>
+            <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+              <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>Add Direct Expense</Text>
+              <Text style={[styles.modalSubtitle, isDark && styles.modalSubtitleDark]}>
+                For bills and expenses that don&apos;t go through shopping lists (e.g., rent, utilities)
+              </Text>
+
+              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Description</Text>
+              <TextInput
+                style={[styles.modalInput, isDark && styles.modalInputDark]}
+                placeholder="e.g., Water Bill, Rent"
+                placeholderTextColor={isDark ? '#666' : '#999'}
+                value={directExpenseFormData.description}
+                onChangeText={(text) => setDirectExpenseFormData({ ...directExpenseFormData, description: text })}
+                autoFocus
+              />
+
+              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Amount</Text>
+              <TextInput
+                style={[styles.modalInput, isDark && styles.modalInputDark]}
+                placeholder="0.00"
+                placeholderTextColor={isDark ? '#666' : '#999'}
+                value={directExpenseFormData.amount}
+                onChangeText={(text) => setDirectExpenseFormData({ ...directExpenseFormData, amount: text })}
+                keyboardType="decimal-pad"
+              />
+
+              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Budget category</Text>
+              <View style={styles.budgetCategoryContainer}>
+                {budgetCategories.map((category) => (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[
+                      styles.budgetCategoryButton,
+                      isDark && styles.budgetCategoryButtonDark,
+                      directExpenseFormData.budgetCategoryName === category.name &&
+                        styles.budgetCategoryButtonSelected,
+                      directExpenseFormData.budgetCategoryName === category.name &&
+                        isDark &&
+                        styles.budgetCategoryButtonSelectedDark,
+                    ]}
+                    onPress={() => setDirectExpenseFormData({ ...directExpenseFormData, budgetCategoryName: category.name })}>
+                    <Text
+                      style={[
+                        styles.budgetCategoryButtonText,
+                        isDark && styles.budgetCategoryButtonTextDark,
+                        directExpenseFormData.budgetCategoryName === category.name &&
+                          styles.budgetCategoryButtonTextSelected,
+                      ]}>
+                      {category.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel, isDark && styles.modalButtonCancelDark]}
+                  onPress={() => {
+                    setDirectExpenseModalVisible(false);
+                    resetDirectExpenseForm();
+                  }}
+                  disabled={isAddingExpense}>
+                  <Text style={[styles.modalButtonText, styles.modalButtonTextCancel]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonSave, isDark && styles.modalButtonSaveDark]}
+                  onPress={handleSaveDirectExpense}
+                  disabled={isAddingExpense}>
+                  {isAddingExpense ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalButtonText}>Add Expense</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </View>
     );
   }
@@ -425,29 +651,38 @@ export default function ShoppingListScreen() {
       <View style={[styles.header, isDark && styles.headerDark]}>
         <View style={styles.headerTop}>
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.backButtonContainer, isDark && styles.backButtonContainerDark]}
             onPress={() => selectList(null)}
+            activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <IconSymbol name="chevron.left" size={20} color={isDark ? '#E6E1E5' : '#111'} />
+            <IconSymbol name="chevron.left" size={18} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerActionButton}
-            onPress={() => {
-              if (selectedList) {
-                Alert.alert(
-                  selectedList.name,
-                  'What would you like to do?',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Edit', onPress: () => openEditListModal(selectedList) },
-                    { text: 'Delete', style: 'destructive', onPress: () => handleDeleteList(selectedList) },
-                  ]
-                );
-              }
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <IconSymbol name="ellipsis" size={20} color={isDark ? '#E6E1E5' : '#111'} />
-          </TouchableOpacity>
+          <View style={styles.headerTopRight}>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={openAddDirectExpenseModal}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <IconSymbol name="dollarsign.circle.fill" size={24} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={() => {
+                if (selectedList) {
+                  Alert.alert(
+                    selectedList.name,
+                    'What would you like to do?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Edit', onPress: () => openEditListModal(selectedList) },
+                      { text: 'Delete', style: 'destructive', onPress: () => handleDeleteList(selectedList) },
+                    ]
+                  );
+                }
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <IconSymbol name="ellipsis" size={20} color={isDark ? '#E6E1E5' : '#111'} />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.headerContent}>
           <Text style={[styles.title, isDark && styles.titleDark]}>{selectedList?.name}</Text>
@@ -488,10 +723,10 @@ export default function ShoppingListScreen() {
         />
       )}
 
-      {/* Simple FAB */}
+      {/* FAB */}
       <TouchableOpacity
         style={[styles.fab, isDark && styles.fabDark]}
-        onPress={openAddItemModal}
+        onPress={handleMainFabPress}
         activeOpacity={0.8}>
         <IconSymbol name="plus" size={24} color="#FFFFFF" />
       </TouchableOpacity>
@@ -592,6 +827,94 @@ export default function ShoppingListScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Direct Expense Modal */}
+      <Modal
+        visible={directExpenseModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDirectExpenseModalVisible(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}>
+          <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>Add Direct Expense</Text>
+            <Text style={[styles.modalSubtitle, isDark && styles.modalSubtitleDark]}>
+              For bills and expenses that don&apos;t go through shopping lists (e.g., rent, utilities)
+            </Text>
+
+            <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Description</Text>
+            <TextInput
+              style={[styles.modalInput, isDark && styles.modalInputDark]}
+              placeholder="e.g., Water Bill, Rent"
+              placeholderTextColor={isDark ? '#666' : '#999'}
+              value={directExpenseFormData.description}
+              onChangeText={(text) => setDirectExpenseFormData({ ...directExpenseFormData, description: text })}
+              autoFocus
+            />
+
+            <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Amount</Text>
+            <TextInput
+              style={[styles.modalInput, isDark && styles.modalInputDark]}
+              placeholder="0.00"
+              placeholderTextColor={isDark ? '#666' : '#999'}
+              value={directExpenseFormData.amount}
+              onChangeText={(text) => setDirectExpenseFormData({ ...directExpenseFormData, amount: text })}
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Budget category</Text>
+            <View style={styles.budgetCategoryContainer}>
+              {budgetCategories.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.budgetCategoryButton,
+                    isDark && styles.budgetCategoryButtonDark,
+                    directExpenseFormData.budgetCategoryName === category.name &&
+                      styles.budgetCategoryButtonSelected,
+                    directExpenseFormData.budgetCategoryName === category.name &&
+                      isDark &&
+                      styles.budgetCategoryButtonSelectedDark,
+                  ]}
+                  onPress={() => setDirectExpenseFormData({ ...directExpenseFormData, budgetCategoryName: category.name })}>
+                  <Text
+                    style={[
+                      styles.budgetCategoryButtonText,
+                      isDark && styles.budgetCategoryButtonTextDark,
+                      directExpenseFormData.budgetCategoryName === category.name &&
+                        styles.budgetCategoryButtonTextSelected,
+                    ]}>
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel, isDark && styles.modalButtonCancelDark]}
+                onPress={() => {
+                  setDirectExpenseModalVisible(false);
+                  resetDirectExpenseForm();
+                }}
+                disabled={isAddingExpense}>
+                <Text style={[styles.modalButtonText, styles.modalButtonTextCancel]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSave, isDark && styles.modalButtonSaveDark]}
+                onPress={handleSaveDirectExpense}
+                disabled={isAddingExpense}>
+                {isAddingExpense ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalButtonText}>Add Expense</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -624,6 +947,27 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 4,
   },
+  backButtonContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#E0F2FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0a7ea4',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  backButtonContainerDark: {
+    backgroundColor: '#1E3A5F',
+    borderColor: '#2E4A6F',
+    shadowColor: '#4FC3F7',
+    shadowOpacity: 0.2,
+  },
   headerContent: {
     gap: 4,
   },
@@ -655,6 +999,11 @@ const styles = StyleSheet.create({
   },
   headerActionButton: {
     padding: 4,
+  },
+  headerTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -802,6 +1151,15 @@ const styles = StyleSheet.create({
   },
   modalTitleDark: {
     color: '#E6E1E5',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  modalSubtitleDark: {
+    color: '#938F99',
   },
   modalLabel: {
     fontSize: 14,
