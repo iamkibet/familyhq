@@ -1,35 +1,63 @@
-import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import { PlatformPressable } from '@react-navigation/elements';
+import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
+import React from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 export function HapticTab(props: BottomTabBarButtonProps) {
-  const { style, ...restProps } = props;
+  const {
+    style,
+    onPress,
+    onLongPress,
+    children,
+    testID,
+    accessibilityLabel,
+    accessibilityState,
+    accessibilityRole,
+  } = props;
+
+  const handlePress = (e: Parameters<NonNullable<typeof onPress>>[0]) => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onPress?.(e);
+  };
+
+  // Expand hit area on iOS so taps register reliably in simulator and on device
+  const hitSlop = Platform.OS === 'ios' ? { top: 12, bottom: 12, left: 16, right: 16 } : undefined;
+
   return (
-    <PlatformPressable
-      {...restProps}
-      android_ripple={{
-        color: Platform.OS === 'android' ? 'rgba(10, 126, 164, 0.1)' : undefined,
-        borderless: false,
-      }}
-      onPressIn={(ev) => {
-        // Haptic feedback for both iOS and Android
-        if (Platform.OS === 'ios') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } else if (Platform.OS === 'android') {
-          // Android haptic feedback
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-        props.onPressIn?.(ev);
-      }}
-      style={
-        (({ pressed }: { pressed: boolean }) => [
-          style,
-          pressed && Platform.OS === 'ios' && {
-            opacity: 0.7,
-          },
-        ]) as any
-      }
-    />
+    <Pressable
+      onPress={handlePress}
+      onLongPress={onLongPress ?? undefined}
+      style={({ pressed }) => [styles.touchable, style, pressed && Platform.OS === 'ios' && styles.pressed]}
+      testID={testID}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={accessibilityState}
+      accessibilityRole={accessibilityRole ?? 'button'}
+      hitSlop={hitSlop}
+    >
+      <View style={styles.content} pointerEvents="none">
+        {children}
+      </View>
+    </Pressable>
   );
 }
+
+const MIN_TOUCH_TARGET = 48;
+
+const styles = StyleSheet.create({
+  touchable: {
+    flex: 1,
+    alignSelf: 'stretch',
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  content: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

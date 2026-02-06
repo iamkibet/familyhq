@@ -14,6 +14,7 @@ export const COLLECTIONS = {
   DIRECT_EXPENSES: 'directExpenses', // Subcollection: families/{familyId}/directExpenses/{expenseId}
   TASKS: 'tasks',
   EVENTS: 'events',
+  MEAL_PLANS: 'mealPlans',
 } as const;
 
 // Shopping categories

@@ -90,6 +90,15 @@ const MAPPING: IconMapping = {
   'chart.bar.fill': 'bar-chart',
   // Alerts
   'exclamationmark.triangle.fill': 'warning',
+  // Meal planner
+  'fork.knife': 'restaurant',
+  'fork.knife.circle': 'restaurant',
+  'cup.and.saucer': 'free-breakfast',
+  'cup.and.saucer.fill': 'free-breakfast',
+  'bowl.fill': 'lunch-dining',
+  'takeoutbag.and.cup.and.straw': 'lunch-dining',
+  'fork.knife.circle.fill': 'dinner-dining',
+  'birthday.cake.fill': 'cake',
 } as IconMapping;
 
 /**

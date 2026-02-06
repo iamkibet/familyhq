@@ -398,6 +398,25 @@ expo start --clear
 - [ ] Waited 5-10 minutes after making changes
 - [ ] Cleared cache and restarted development server
 
+### "The query requires an index" Error (Firestore)
+
+When you see **"The query requires an index"** (e.g. in Meal Planner), Firestore needs a composite index for that query.
+
+**Option A – Use the link in the error (fastest)**  
+1. Copy the full URL from the error message (starts with `https://console.firebase.google.com/v1/r/project/...create_composite=...`).  
+2. Open it in your browser (while logged into Firebase).  
+3. Confirm the index (collection: `mealPlans`, fields: `familyId` Ascending, `date` Ascending).  
+4. Click **Create**. Index building can take a few minutes.
+
+**Option B – Deploy from the project**  
+From the project root, run:
+
+```bash
+firebase deploy --only firestore:indexes
+```
+
+Index definitions live in `firestore.indexes.json`. After creating the index (A or B), reload the app; the query will work once the index is **Building** or **Enabled**.
+
 ### "Missing or Insufficient Permissions" Error (Firestore)
 
 - ✅ **Most Common Fix**: Update Firestore security rules (see Step 6 above)

@@ -88,11 +88,15 @@ export function formatDate(date: string | Date): string {
 }
 
 /**
- * Format date for input (YYYY-MM-DD)
+ * Format date for input (YYYY-MM-DD) in local timezone.
+ * Use this for "today" and any user-facing date so the correct calendar day is shown.
  */
 export function formatDateForInput(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toISOString().split('T')[0];
+  const d = typeof date === 'string' ? new Date(date + 'T12:00:00') : new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /**

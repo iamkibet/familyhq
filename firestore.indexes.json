@@ -4,17 +4,18 @@
       "collectionGroup": "notes",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "updatedAt",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mealPlans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "familyId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
       ]
     }
   ],
   "fieldOverrides": []
 }
-

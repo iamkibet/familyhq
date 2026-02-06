@@ -1,54 +1,83 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeScheme } from '@/hooks/use-theme-scheme';
 import { HapticTab } from '@/components/haptic-tab';
 
+// Material Design: 24dp icons in 48dp touch target on Android
+const ANDROID_ICON_SIZE = 24;
+const ANDROID_ICON_CONTAINER = 48;
+const IOS_ICON_SIZE = 28;
+
+function TabIcon({
+  name,
+  nameFocused,
+  color,
+  focused,
+}: {
+  name: string;
+  nameFocused: string;
+  color: string;
+  focused: boolean;
+}) {
+  const size = Platform.OS === 'android' ? ANDROID_ICON_SIZE : IOS_ICON_SIZE;
+  const icon = (
+    <IconSymbol
+      size={size}
+      name={focused ? nameFocused : name}
+      color={color}
+    />
+  );
+  if (Platform.OS === 'android') {
+    return (
+      <View style={styles.androidIconContainer}>
+        {icon}
+      </View>
+    );
+  }
+  return icon;
+}
+
 export default function TabLayout() {
   const colorScheme = useThemeScheme();
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
-  // Calculate bottom padding for Android navigation bar
   const bottomPadding =
-    Platform.OS === 'android' ? Math.max(insets.bottom, 10) : Platform.OS === 'ios' ? 30 : 10;
-  const tabBarHeight = Platform.OS === 'ios' ? 90 : 72 + insets.bottom;
+    Platform.OS === 'android' ? Math.max(insets.bottom, 10) : Platform.OS === 'ios' ? 24 : 10;
+  const tabBarHeight = Platform.OS === 'ios' ? 64 + bottomPadding : 56 + insets.bottom;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarShowLabel: false,
         tabBarActiveTintColor: isDark ? '#4FC3F7' : '#0a7ea4',
         tabBarInactiveTintColor: isDark ? '#9BA1A6' : '#687076',
         tabBarHideOnKeyboard: true,
-        tabBarAllowFontScaling: false,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-          marginTop: 4,
-          marginBottom: Platform.OS === 'ios' ? 0 : 4,
-          letterSpacing: 0.3,
-        },
         tabBarIconStyle: {
-          marginTop: 0,
+          marginBottom: 0,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: Platform.OS === 'android' ? 8 : 10,
+          paddingHorizontal: 4,
+          justifyContent: 'center',
+          alignItems: 'center',
         },
         tabBarStyle: {
           backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
           borderTopWidth: 0,
-          elevation: 20,
+          elevation: Platform.OS === 'android' ? 8 : 20,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.12,
-          shadowRadius: 20,
+          shadowOffset: { width: 0, height: Platform.OS === 'android' ? -2 : -3 },
+          shadowOpacity: Platform.OS === 'android' ? 0.08 : 0.12,
+          shadowRadius: Platform.OS === 'android' ? 8 : 20,
           height: tabBarHeight,
           paddingBottom: bottomPadding,
-          paddingTop: 10,
+          paddingTop: Platform.OS === 'android' ? 8 : 10,
         },
       }}
     >
@@ -57,7 +86,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <IconSymbol size={focused ? 32 : 28} name={focused ? 'house.fill' : 'house'} color={color} />
+            <TabIcon name="house" nameFocused="house.fill" color={color} focused={focused} />
           ),
           tabBarButton: HapticTab,
         }}
@@ -67,7 +96,17 @@ export default function TabLayout() {
         options={{
           title: 'Shopping',
           tabBarIcon: ({ color, focused }) => (
-            <IconSymbol size={focused ? 32 : 28} name={focused ? 'cart.fill' : 'cart'} color={color} />
+            <TabIcon name="cart" nameFocused="cart.fill" color={color} focused={focused} />
+          ),
+          tabBarButton: HapticTab,
+        }}
+      />
+      <Tabs.Screen
+        name="meal-planner"
+        options={{
+          title: 'Meal Planner',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="fork.knife" nameFocused="fork.knife.circle" color={color} focused={focused} />
           ),
           tabBarButton: HapticTab,
         }}
@@ -83,10 +122,11 @@ export default function TabLayout() {
         options={{
           title: 'Tasks',
           tabBarIcon: ({ color, focused }) => (
-            <IconSymbol
-              size={focused ? 32 : 28}
-              name={focused ? 'list.bullet.rectangle.fill' : 'list.bullet.rectangle'}
+            <TabIcon
+              name="list.bullet.rectangle"
+              nameFocused="list.bullet.rectangle.fill"
               color={color}
+              focused={focused}
             />
           ),
           tabBarButton: HapticTab,
@@ -97,7 +137,7 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color, focused }) => (
-            <IconSymbol size={focused ? 32 : 28} name={focused ? 'gearshape.fill' : 'gearshape'} color={color} />
+            <TabIcon name="gearshape" nameFocused="gearshape.fill" color={color} focused={focused} />
           ),
           tabBarButton: HapticTab,
         }}
@@ -105,5 +145,14 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  androidIconContainer: {
+    width: ANDROID_ICON_CONTAINER,
+    height: ANDROID_ICON_CONTAINER,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
 
 

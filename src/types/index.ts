@@ -112,3 +112,24 @@ export interface Note {
   updatedAt: Timestamp;
 }
 
+/** Meal type for the planner timetable (breakfast, lunch, dinner, snack) */
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+/**
+ * Meal plan entry - one meal slot per date + mealType.
+ * Stored in Firestore collection MEAL_PLANS.
+ * ingredients: optional; TODO link to shopping list integration.
+ * TODO: budget estimation per meal could add optional cost/estimatedCost field.
+ */
+export interface MealPlanEntry {
+  id: string;
+  familyId: string;
+  date: string; // "YYYY-MM-DD"
+  mealType: MealType;
+  title: string;
+  description?: string;
+  createdBy: string;
+  createdAt: Timestamp;
+  ingredients?: string[];
+}
+
