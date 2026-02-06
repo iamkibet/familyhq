@@ -1,16 +1,17 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeScheme } from '@/hooks/use-theme-scheme';
 import { HapticTab } from '@/components/haptic-tab';
+import { colors } from '@/src/theme/colors';
+import { typography } from '@/src/theme/typography';
 
-// Material Design: 24dp icons in 48dp touch target on Android
-const ANDROID_ICON_SIZE = 24;
-const ANDROID_ICON_CONTAINER = 48;
-const IOS_ICON_SIZE = 28;
+const TAB_ICON_SIZE = 24;
+const TAB_BAR_PADDING_TOP = 10;
+const TAB_BAR_CONTENT_HEIGHT = 52;
 
 function TabIcon({
   name,
@@ -23,61 +24,58 @@ function TabIcon({
   color: string;
   focused: boolean;
 }) {
-  const size = Platform.OS === 'android' ? ANDROID_ICON_SIZE : IOS_ICON_SIZE;
-  const icon = (
+  return (
     <IconSymbol
-      size={size}
+      size={TAB_ICON_SIZE}
       name={focused ? nameFocused : name}
       color={color}
     />
   );
-  if (Platform.OS === 'android') {
-    return (
-      <View style={styles.androidIconContainer}>
-        {icon}
-      </View>
-    );
-  }
-  return icon;
 }
 
 export default function TabLayout() {
   const colorScheme = useThemeScheme();
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
+  const palette = colors[isDark ? 'dark' : 'light'];
 
-  const bottomPadding =
-    Platform.OS === 'android' ? Math.max(insets.bottom, 10) : Platform.OS === 'ios' ? 24 : 10;
-  const tabBarHeight = Platform.OS === 'ios' ? 64 + bottomPadding : 56 + insets.bottom;
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 12);
+  const tabBarHeight = TAB_BAR_PADDING_TOP + TAB_BAR_CONTENT_HEIGHT + bottomPadding;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false,
-        tabBarActiveTintColor: isDark ? '#4FC3F7' : '#0a7ea4',
-        tabBarInactiveTintColor: isDark ? '#9BA1A6' : '#687076',
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: palette.primary,
+        tabBarInactiveTintColor: palette.muted,
         tabBarHideOnKeyboard: true,
-        tabBarIconStyle: {
-          marginBottom: 0,
+        tabBarStyle: {
+          backgroundColor: palette.surface,
+          borderTopWidth: 1,
+          borderTopColor: palette.border,
+          height: tabBarHeight,
+          paddingTop: TAB_BAR_PADDING_TOP,
+          paddingBottom: bottomPadding,
+          elevation: 0,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.04,
+          shadowRadius: 12,
         },
         tabBarItemStyle: {
-          paddingVertical: Platform.OS === 'android' ? 8 : 10,
+          paddingVertical: 6,
           paddingHorizontal: 4,
+          minHeight: TAB_BAR_CONTENT_HEIGHT,
           justifyContent: 'center',
           alignItems: 'center',
         },
-        tabBarStyle: {
-          backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
-          borderTopWidth: 0,
-          elevation: Platform.OS === 'android' ? 8 : 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: Platform.OS === 'android' ? -2 : -3 },
-          shadowOpacity: Platform.OS === 'android' ? 0.08 : 0.12,
-          shadowRadius: Platform.OS === 'android' ? 8 : 20,
-          height: tabBarHeight,
-          paddingBottom: bottomPadding,
-          paddingTop: Platform.OS === 'android' ? 8 : 10,
+        tabBarIconStyle: {
+          marginBottom: 4,
+        },
+        tabBarLabelStyle: {
+          fontSize: typography.fontSizes.xs,
+          fontWeight: typography.fontWeights.medium,
         },
       }}
     >
@@ -104,19 +102,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="meal-planner"
         options={{
-          title: 'Meal Planner',
+          title: 'Meals',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="fork.knife" nameFocused="fork.knife.circle" color={color} focused={focused} />
           ),
           tabBarButton: HapticTab,
         }}
       />
-
-      {/* Hidden from tab bar */}
       <Tabs.Screen name="budget" options={{ href: null }} />
       <Tabs.Screen name="calendar" options={{ href: null }} />
       <Tabs.Screen name="notes" options={{ href: null }} />
-
       <Tabs.Screen
         name="tasks"
         options={{
@@ -124,7 +119,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="list.bullet.rectangle"
-              nameFocused="list.bullet.rectangle.fill"
+              nameFocused="list.bullet.rectangle"
               color={color}
               focused={focused}
             />
@@ -145,14 +140,3 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  androidIconContainer: {
-    width: ANDROID_ICON_CONTAINER,
-    height: ANDROID_ICON_CONTAINER,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
-
-

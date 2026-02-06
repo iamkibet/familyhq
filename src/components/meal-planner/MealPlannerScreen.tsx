@@ -56,8 +56,8 @@ export function MealPlannerScreen() {
     if (family?.id) {
       loadWeek(family.id, weekAnchor);
     }
-    return () => clearEntries();
-  }, [family?.id, weekAnchor, loadWeek, clearEntries]);
+    // Don't clear entries on unmount so home screen can show today's meals
+  }, [family?.id, weekAnchor, loadWeek]);
 
   const weekDates = useMemo(() => {
     if (!weekStart || !weekEnd) return [];

@@ -10,10 +10,11 @@ import {
 import { useThemeScheme } from '@/hooks/use-theme-scheme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const HORIZONTAL_PADDING = 20; // Padding on each side of screen
-const CARD_SPACING = 16; // Space between cards
-// Card width: screen width minus padding on both sides, minus spacing for proper visual separation
-const CARD_WIDTH = SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - CARD_SPACING;
+const SECTION_PADDING_H = 24; // Matches theme spacing.screenHorizontal so content aligns with section titles
+const CARD_SPACING = 16;
+const CONTENT_WIDTH = SCREEN_WIDTH - SECTION_PADDING_H * 2;
+const CARD_WIDTH = CONTENT_WIDTH - CARD_SPACING;
+const END_PADDING = SECTION_PADDING_H;
 
 interface DashboardCarouselProps {
   children: React.ReactNode[];
@@ -32,9 +33,7 @@ export function DashboardCarousel({ children, onPageChange }: DashboardCarouselP
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    // Account for initial padding on first card
-    const adjustedOffset = Math.max(0, offsetX - HORIZONTAL_PADDING);
-    const index = Math.round(adjustedOffset / snapInterval);
+    const index = Math.round(offsetX / snapInterval);
     
     if (index !== currentIndex && index >= 0 && index < validChildren.length) {
       setCurrentIndex(index);
@@ -60,12 +59,12 @@ export function DashboardCarousel({ children, onPageChange }: DashboardCarouselP
           <View 
             key={index} 
             style={[
-              styles.cardContainer, 
-              { 
+              styles.cardContainer,
+              {
                 width: CARD_WIDTH,
-                marginLeft: index === 0 ? HORIZONTAL_PADDING : 0,
-                marginRight: index === validChildren.length - 1 ? HORIZONTAL_PADDING : CARD_SPACING,
-              }
+                marginLeft: index === 0 ? 0 : CARD_SPACING,
+                marginRight: index === validChildren.length - 1 ? END_PADDING : 0,
+              },
             ]}>
             {child}
           </View>
@@ -94,23 +93,21 @@ export function DashboardCarousel({ children, onPageChange }: DashboardCarouselP
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 12,
-    marginBottom: 32,
+    marginTop: 4,
+    marginBottom: 24,
   },
   scrollContent: {
     alignItems: 'flex-start',
     paddingVertical: 4,
   },
-  cardContainer: {
-    // Card container styling handled inline for dynamic spacing
-  },
+  cardContainer: {},
   indicators: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    marginTop: 20,
-    paddingHorizontal: HORIZONTAL_PADDING,
+    marginTop: 16,
+    paddingHorizontal: 0,
   },
   indicator: {
     width: 8,

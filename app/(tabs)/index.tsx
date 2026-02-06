@@ -4,16 +4,27 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   Modal,
   TextInput,
   Alert,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  withTiming,
+  useSharedValue,
+} from 'react-native-reanimated';
+
+// Stores and Hooks
 import { useAuthStore } from '@/src/stores/authStore';
 import { useShoppingStore } from '@/src/stores/shoppingStore';
 import { useTaskStore } from '@/src/stores/taskStore';
@@ -24,12 +35,17 @@ import { useNotesStore } from '@/src/stores/notesStore';
 import { useFamilyData } from '@/src/hooks/useFamilyData';
 import { useFamilyMembers } from '@/src/hooks/useFamilyMembers';
 import { useReadActivitiesStore } from '@/src/stores/readActivitiesStore';
-import { formatDate, formatDateForInput, formatRelativeTime, isToday, isPast, TimePeriod, isWithinTimePeriod, isBudgetActive, isDateInRange } from '@/src/utils';
-import { useFormatCurrency } from '@/src/hooks/use-format-currency';
-import { FamilyEvent, ShoppingItem, Task, User, BudgetCategory, DirectExpense } from '@/src/types';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useMealPlannerStore } from '@/src/stores/mealPlannerStore';
+import {
+  formatDateForInput,
+  TimePeriod,
+  isDateInRange,
+} from '@/src/utils';
+import { FamilyEvent, BudgetCategory } from '@/src/types';
 import { useThemeScheme } from '@/hooks/use-theme-scheme';
-import { PieChart } from '@/src/components/PieChart';
+
+// Components
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { TimePeriodSelector } from '@/src/components/TimePeriodSelector';
 import { DashboardCarousel } from '@/src/components/DashboardCarousel';
 import { BudgetCard } from '@/src/components/dashboard/BudgetCard';
@@ -38,42 +54,48 @@ import { TasksCard } from '@/src/components/dashboard/TasksCard';
 import { EventsCard } from '@/src/components/dashboard/EventsCard';
 import { NotesCard } from '@/src/components/dashboard/NotesCard';
 import { HeroSection } from '@/src/components/dashboard/HeroSection';
+import { TodayMealsCard } from '@/src/components/dashboard/TodayMealsCard';
 import { ActivityFeed, Activity } from '@/src/components/dashboard/ActivityFeed';
 
+// Theme
+import { colors } from '@/src/theme/colors';
+import { spacing } from '@/src/theme/spacing';
+import { typography } from '@/src/theme/typography';
+import { radius } from '@/src/theme/radius';
+
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const QUICK_ACTION_GAP = 12;
+const QUICK_ACTION_CARD_WIDTH = (SCREEN_WIDTH - spacing.screenHorizontal * 2 - QUICK_ACTION_GAP) / 2;
+
 export default function HomeScreen() {
-  useFamilyData(); // Initialize all family data stores
+  useFamilyData();
   const router = useRouter();
   const colorScheme = useThemeScheme();
+  const insets = useSafeAreaInsets();
   const isDark = colorScheme === 'dark';
   const { userData, family } = useAuthStore();
-  const formatCurrency = useFormatCurrency();
-  const { members: familyMembers, getUserName, getUserInitials } = useFamilyMembers();
+  const { members: familyMembers, getUserName } = useFamilyMembers();
+  const { lists: shoppingLists, items: allShoppingItems, subscribeToLists, subscribeToAllItems } = useShoppingStore();
+  const { expenses: directExpenses, subscribeToExpenses, clearExpenses } = useDirectExpenseStore();
 
-  // Subscribe to direct expenses
   useEffect(() => {
     if (family?.id) {
       subscribeToExpenses(family.id);
+      subscribeToLists(family.id);
     }
     return () => {
       clearExpenses();
     };
-  }, [family?.id]);
-  const { lists: shoppingLists, items: allShoppingItems, subscribeToLists, subscribeToAllItems } = useShoppingStore();
-  
-  // Subscribe to shopping lists and all items for budget calculations
-  useEffect(() => {
-    if (family?.id) {
-      subscribeToLists(family.id);
-    }
-  }, [family?.id, subscribeToLists]);
-  
+  }, [family?.id, subscribeToExpenses, subscribeToLists, clearExpenses]);
+
   useEffect(() => {
     if (family?.id && shoppingLists.length > 0) {
       subscribeToAllItems(family.id);
     }
   }, [family?.id, shoppingLists.length, subscribeToAllItems]);
 
-  // Load read activities
   const { readActivityIds, loadReadActivities, markAsRead } = useReadActivitiesStore();
   useEffect(() => {
     if (userData?.id) {
@@ -82,12 +104,27 @@ export default function HomeScreen() {
   }, [userData?.id, loadReadActivities]);
 
   const { tasks, addTask } = useTaskStore();
-  const { events, addEvent, updateEvent, deleteEvent } = useCalendarStore();
+  const { events, addEvent, updateEvent } = useCalendarStore();
   const { categories: budgetCategories, activePeriod } = useBudgetStore();
-  const { expenses: directExpenses, subscribeToExpenses, clearExpenses } = useDirectExpenseStore();
   const { notes, subscribeToNotes, clearNotes } = useNotesStore();
+  const { loadWeek, getEntriesByDate, weekStart, weekEnd, entries: mealPlannerEntries } = useMealPlannerStore();
 
-  // Subscribe to personal notes
+  const todayStr = formatDateForInput(new Date());
+
+  useEffect(() => {
+    if (family?.id) {
+      loadWeek(family.id, new Date());
+    }
+  }, [family?.id, loadWeek]);
+
+  const mealPlannerEntriesByDate = useMemo(
+    () => {
+      if (!weekStart || !weekEnd) return {};
+      return getEntriesByDate(weekStart, weekEnd);
+    },
+    [weekStart, weekEnd, getEntriesByDate, mealPlannerEntries]
+  );
+
   useEffect(() => {
     if (userData?.id) {
       const unsubscribe = subscribeToNotes(userData.id);
@@ -97,43 +134,28 @@ export default function HomeScreen() {
       };
     }
   }, [userData?.id, subscribeToNotes, clearNotes]);
+
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
-  const [budgetDetailModalVisible, setBudgetDetailModalVisible] = useState(false);
-  const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<BudgetCategory | null>(null);
   const [editingEvent, setEditingEvent] = useState<FamilyEvent | null>(null);
-  const [familyModalVisible, setFamilyModalVisible] = useState(false);
-  const [familyModalMode, setFamilyModalMode] = useState<'create' | 'join' | null>(null);
-  const [familyName, setFamilyName] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
-  const { createFamily, joinFamily, loading: authLoading } = useAuthStore();
   const [eventFormData, setEventFormData] = useState({
     title: '',
     date: formatDateForInput(new Date()),
     description: '',
   });
+
   const [taskFormData, setTaskFormData] = useState({
     title: '',
     assignedTo: userData?.id || '',
     dueDate: formatDateForInput(new Date()),
   });
+
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('thisMonth');
   const [activityFeedVisible, setActivityFeedVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const activeTasks = tasks.filter((t) => !t.completed).length;
-  const completedTasks = tasks.filter((t) => t.completed).length;
-  const upcomingEvents = events
-    .filter((e) => {
-      const eventDate = new Date(e.date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return eventDate >= today;
-    })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, 5);
+  const headerOpacity = useSharedValue(1);
 
-  // Helper to get expense date as string (YYYY-MM-DD)
   const getExpenseDate = (timestamp: { toMillis: () => number } | Date | string | null | undefined): string | null => {
     if (!timestamp) return null;
     try {
@@ -154,70 +176,40 @@ export default function HomeScreen() {
     }
   };
 
-  // Memoize active budgets - only show categories if there's an active period
   const activeBudgets = useMemo(() => {
     if (!activePeriod) return [];
-    // Ensure categories belong to the active period
-    return budgetCategories.filter(cat => cat.budgetPeriodId === activePeriod.id);
+    return budgetCategories.filter((cat) => cat.budgetPeriodId === activePeriod.id);
   }, [activePeriod, budgetCategories]);
 
-  // Memoize category spent calculation to prevent recalculation issues
-  const calculateCategorySpent = useCallback((category: BudgetCategory): number => {
-    if (!activePeriod) return 0;
-    
-    // Get expenses that match this category name and fall within the budget period
-    const categoryDirectExpenses = directExpenses.filter((exp) => {
-      if (exp.budgetCategoryName !== category.name) return false;
-      const expenseDate = getExpenseDate(exp.createdAt);
-      if (!expenseDate) return false;
-      return isDateInRange(expenseDate, activePeriod.startDate, activePeriod.endDate);
-    });
+  const calculateCategorySpent = useCallback(
+    (category: BudgetCategory): number => {
+      if (!activePeriod) return 0;
 
-    const categoryShoppingItems = allShoppingItems.filter((item) => {
-      if (!item.isBought || item.budgetCategoryName !== category.name) return false;
-      const itemDate = getExpenseDate(item.createdAt);
-      if (!itemDate) return false;
-      return isDateInRange(itemDate, activePeriod.startDate, activePeriod.endDate);
-    });
-
-    const directExpenseTotal = categoryDirectExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-    const shoppingItemTotal = categoryShoppingItems.reduce(
-      (sum, item) => sum + ((item.estimatedPrice || 0) * (item.quantity || 0)),
-      0
-    );
-
-    const total = directExpenseTotal + shoppingItemTotal;
-    
-    // Debug logging for troubleshooting
-    if (activeBudgets.length > 0 && category === activeBudgets[0]) {
-      console.log('Budget Calculation Debug:', {
-        categoryName: category.name,
-        periodDates: `${activePeriod.startDate} - ${activePeriod.endDate}`,
-        allDirectExpenses: directExpenses.length,
-        allShoppingItems: allShoppingItems.length,
-        boughtItems: allShoppingItems.filter(i => i.isBought).length,
-        categoryDirectExpensesCount: categoryDirectExpenses.length,
-        categoryShoppingItemsCount: categoryShoppingItems.length,
-        directExpenseTotal,
-        shoppingItemTotal,
-        total,
-        sampleExpense: directExpenses[0] ? {
-          name: directExpenses[0].budgetCategoryName,
-          amount: directExpenses[0].amount,
-          date: getExpenseDate(directExpenses[0].createdAt),
-        } : null,
-        sampleItem: allShoppingItems.find(i => i.isBought && i.budgetCategoryName) ? {
-          name: allShoppingItems.find(i => i.isBought && i.budgetCategoryName)?.budgetCategoryName,
-          price: allShoppingItems.find(i => i.isBought && i.budgetCategoryName)?.estimatedPrice,
-          date: getExpenseDate(allShoppingItems.find(i => i.isBought && i.budgetCategoryName)?.createdAt),
-        } : null,
+      const categoryDirectExpenses = directExpenses.filter((exp) => {
+        if (exp.budgetCategoryName !== category.name) return false;
+        const expenseDate = getExpenseDate(exp.createdAt);
+        if (!expenseDate) return false;
+        return isDateInRange(expenseDate, activePeriod.startDate, activePeriod.endDate);
       });
-    }
 
-    return total;
-  }, [activePeriod, directExpenses, allShoppingItems, activeBudgets]);
+      const categoryShoppingItems = allShoppingItems.filter((item) => {
+        if (!item.isBought || item.budgetCategoryName !== category.name) return false;
+        const itemDate = getExpenseDate(item.createdAt);
+        if (!itemDate) return false;
+        return isDateInRange(itemDate, activePeriod.startDate, activePeriod.endDate);
+      });
 
-  // Memoize budget statistics to prevent recalculation on every render
+      const directExpenseTotal = categoryDirectExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      const shoppingItemTotal = categoryShoppingItems.reduce(
+        (sum, item) => sum + (item.estimatedPrice || 0) * (item.quantity || 0),
+        0
+      );
+
+      return directExpenseTotal + shoppingItemTotal;
+    },
+    [activePeriod, directExpenses, allShoppingItems]
+  );
+
   const budgetStats = useMemo(() => {
     if (!activePeriod || activeBudgets.length === 0) {
       return {
@@ -225,35 +217,30 @@ export default function HomeScreen() {
         totalSpent: 0,
         totalRemaining: 0,
         percentageUsed: 0,
-        pieChartData: [],
+        pieChartData: [] as { name: string; value: number; color: string }[],
       };
     }
 
     const totalLimit = activeBudgets.reduce((sum, cat) => sum + cat.limit, 0);
-    const totalSpent = activeBudgets.reduce(
-      (sum, cat) => sum + calculateCategorySpent(cat),
-      0
-    );
+    const totalSpent = activeBudgets.reduce((sum, cat) => sum + calculateCategorySpent(cat), 0);
     const totalRemaining = totalLimit - totalSpent;
     const percentageUsed = totalLimit > 0 ? (totalSpent / totalLimit) * 100 : 0;
 
-    // Prepare pie chart data
+    const pieChartColors = isDark
+      ? ['#4FC3F7', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC', '#26C6DA', '#FFCA28']
+      : ['#0a7ea4', '#4CAF50', '#FF9800', '#F44336', '#9C27B0', '#00BCD4', '#FFC107'];
+
     const pieChartData = activeBudgets
       .map((cat) => {
         const spent = calculateCategorySpent(cat);
         return { category: cat, spent };
       })
       .filter(({ spent }) => spent > 0)
-      .map(({ category, spent }, index) => {
-        const colors = isDark
-          ? ['#4FC3F7', '#66BB6A', '#FFA726', '#EF5350', '#AB47BC', '#26C6DA', '#FFCA28']
-          : ['#0a7ea4', '#4CAF50', '#FF9800', '#F44336', '#9C27B0', '#00BCD4', '#FFC107'];
-        return {
-          name: category.name,
-          value: spent,
-          color: colors[index % colors.length],
-        };
-      });
+      .map(({ category, spent }, index) => ({
+        name: category.name,
+        value: spent,
+        color: pieChartColors[index % pieChartColors.length],
+      }));
 
     return {
       totalLimit,
@@ -264,31 +251,25 @@ export default function HomeScreen() {
     };
   }, [activePeriod, activeBudgets, calculateCategorySpent, isDark]);
 
-  // Safely destructure with defaults - budgetStats uses totalLimit, totalSpent, etc.
-  const { 
-    totalLimit: totalBudgetLimit = 0, 
-    totalSpent: totalBudgetSpent = 0, 
-    totalRemaining: totalBudgetRemaining = 0, 
-    percentageUsed: budgetPercentageUsed = 0, 
-    pieChartData = [] 
-  } = budgetStats || {};
+  const {
+    totalLimit: totalBudgetLimit = 0,
+    totalSpent: totalBudgetSpent = 0,
+    totalRemaining: totalBudgetRemaining = 0,
+    percentageUsed: budgetPercentageUsed = 0,
+    pieChartData = [],
+  } = budgetStats;
 
   const getBudgetStatusColor = (percentage: number) => {
-    if (percentage >= 100) return '#F44336'; // Red
-    if (percentage >= 80) return '#FF9800'; // Orange
-    return isDark ? '#4FC3F7' : '#0a7ea4'; // Blue/Teal
+    if (percentage >= 100) return '#F44336';
+    if (percentage >= 80) return '#FF9800';
+    return isDark ? '#4FC3F7' : '#0a7ea4';
   };
 
-  const budgetStatusColor = getBudgetStatusColor(budgetPercentageUsed);
-
-  // Get active shopping lists (not completed)
   const activeShoppingLists = shoppingLists.filter((list) => !list.completed);
 
-  // Aggregate activities from tasks, events, and shopping lists
   const activities = useMemo(() => {
     const activityList: Activity[] = [];
 
-    // Add tasks
     tasks.forEach((task) => {
       if (task.createdAt) {
         activityList.push({
@@ -303,7 +284,6 @@ export default function HomeScreen() {
       }
     });
 
-    // Add events
     events.forEach((event) => {
       if (event.createdAt) {
         activityList.push({
@@ -318,7 +298,6 @@ export default function HomeScreen() {
       }
     });
 
-    // Add shopping lists
     shoppingLists.forEach((list) => {
       if (list.createdAt) {
         activityList.push({
@@ -333,7 +312,6 @@ export default function HomeScreen() {
       }
     });
 
-    // Sort by timestamp (most recent first) and limit to 10
     return activityList
       .sort((a, b) => {
         const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp).getTime();
@@ -343,11 +321,10 @@ export default function HomeScreen() {
       .slice(0, 10);
   }, [tasks, events, shoppingLists, getUserName, isDark]);
 
-  // Filter out read activities and calculate notification count
-  const unreadActivities = useMemo(() => {
-    return activities.filter(activity => !readActivityIds.has(activity.id));
-  }, [activities, readActivityIds]);
-
+  const unreadActivities = useMemo(
+    () => activities.filter((activity) => !readActivityIds.has(activity.id)),
+    [activities, readActivityIds]
+  );
   const notificationCount = unreadActivities.length;
 
   const openAddEventModal = () => {
@@ -360,27 +337,15 @@ export default function HomeScreen() {
     setEventModalVisible(true);
   };
 
-  const openEditEventModal = (event: FamilyEvent) => {
-    setEditingEvent(event);
-    setEventFormData({
-      title: event.title,
-      date: event.date,
-      description: event.description || '',
-    });
-    setEventModalVisible(true);
-  };
-
   const handleSaveEvent = async () => {
     if (!eventFormData.title.trim()) {
       Alert.alert('Error', 'Please enter an event title');
       return;
     }
-
     if (!family?.id || !userData) {
       Alert.alert('Error', 'Family not found');
       return;
     }
-
     try {
       const eventData = {
         title: eventFormData.title.trim(),
@@ -388,47 +353,16 @@ export default function HomeScreen() {
         description: eventFormData.description.trim() || undefined,
         createdBy: userData.id,
       };
-
       if (editingEvent) {
         await updateEvent(editingEvent.id, eventData);
       } else {
         await addEvent(family.id, eventData);
       }
-
       setEventModalVisible(false);
       setEditingEvent(null);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save event');
+    } catch (error: unknown) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save event');
     }
-  };
-
-  const handleDeleteEvent = (event: FamilyEvent) => {
-    Alert.alert('Delete Event', `Are you sure you want to delete "${event.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteEvent(event.id);
-          } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to delete event');
-          }
-        },
-      },
-    ]);
-  };
-
-
-  // Set default assignedTo when family members are loaded
-  useEffect(() => {
-    if (userData && familyMembers.length > 0 && !taskFormData.assignedTo) {
-      setTaskFormData((prev) => ({ ...prev, assignedTo: userData.id }));
-    }
-  }, [familyMembers, userData]);
-
-  const openAddShoppingModal = () => {
-    router.push('/(tabs)/shopping');
   };
 
   const openAddTaskModal = () => {
@@ -440,19 +374,15 @@ export default function HomeScreen() {
     setTaskModalVisible(true);
   };
 
-
-
   const handleSaveTask = async () => {
     if (!taskFormData.title.trim()) {
       Alert.alert('Error', 'Please enter a task title');
       return;
     }
-
     if (!family?.id || !userData) {
       Alert.alert('Error', 'Family not found');
       return;
     }
-
     try {
       await addTask(family.id, {
         title: taskFormData.title.trim(),
@@ -462,198 +392,220 @@ export default function HomeScreen() {
         createdBy: userData.id,
       });
       setTaskModalVisible(false);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add task');
+    } catch (error: unknown) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to add task');
     }
   };
-
-  const getEventDateStatus = (date: string) => {
-    if (isToday(date)) return { text: 'Today', color: '#0a7ea4' };
-    if (isPast(date)) return { text: formatDate(date), color: '#999' };
-    return { text: formatDate(date), color: '#666' };
-  };
-
-  const handleCreateFamily = async () => {
-    if (!familyName.trim()) {
-      Alert.alert('Error', 'Please enter a family name');
-      return;
-    }
-    try {
-      await createFamily(familyName.trim());
-      setFamilyModalVisible(false);
-      setFamilyName('');
-      setFamilyModalMode(null);
-      Alert.alert('Success', 'Family created successfully!');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create family');
-    }
-  };
-
-  const handleJoinFamily = async () => {
-    if (!inviteCode.trim()) {
-      Alert.alert('Error', 'Please enter an invite code');
-      return;
-    }
-    try {
-      await joinFamily(inviteCode.trim().toUpperCase());
-      setFamilyModalVisible(false);
-      setInviteCode('');
-      setFamilyModalMode(null);
-      Alert.alert('Success', 'Successfully joined family!');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to join family');
-    }
-  };
-
 
   const onRefresh = useCallback(async () => {
     if (!family?.id) return;
-    
     setRefreshing(true);
     try {
-      // Re-subscribe to all data sources to force fresh data fetch
-      // This ensures we get the latest data from Firestore
-      const refreshPromises: Promise<void>[] = [];
-      
-      // Re-subscribe to shopping lists and items
-      subscribeToLists(family.id);
-      if (shoppingLists.length > 0) {
-        subscribeToAllItems(family.id);
-      }
-      
-      // Re-subscribe to tasks
-      const taskStore = useTaskStore.getState();
-      taskStore.subscribeToTasks(family.id);
-      
-      // Re-subscribe to events
-      const calendarStore = useCalendarStore.getState();
-      calendarStore.subscribeToEvents(family.id);
-      
-      // Re-subscribe to budget periods (categories will auto-subscribe when period loads)
-      const budgetStore = useBudgetStore.getState();
-      budgetStore.subscribeToPeriods(family.id);
-      
-      // Re-subscribe to expenses
-      subscribeToExpenses(family.id);
-      
-      // Re-subscribe to notes
-      if (userData?.id) {
-        subscribeToNotes(userData.id);
-      }
-      
-      // Reload read activities
-      if (userData?.id) {
-        refreshPromises.push(loadReadActivities(userData.id));
-      }
-      
-      // Wait for all refresh operations to complete
-      await Promise.all(refreshPromises);
-      
-      // Give a minimum time for the refresh animation to be visible
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800));
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [
-    family?.id,
-    userData?.id,
-    shoppingLists.length,
-    subscribeToLists,
-    subscribeToAllItems,
-    subscribeToExpenses,
-    subscribeToNotes,
-    loadReadActivities,
-  ]);
+  }, [family?.id]);
+
+  const palette = colors[isDark ? 'dark' : 'light'];
+
+  const quickActions = [
+    {
+      id: 'shopping',
+      label: 'Shopping',
+      icon: 'cart.fill' as const,
+      color: palette.primary,
+      onPress: () => router.push('/(tabs)/shopping'),
+    },
+    {
+      id: 'task',
+      label: 'Task',
+      icon: 'checkmark.square.fill' as const,
+      color: palette.success,
+      onPress: openAddTaskModal,
+    },
+    {
+      id: 'event',
+      label: 'Event',
+      icon: 'calendar' as const,
+      color: palette.secondary,
+      onPress: openAddEventModal,
+    },
+    {
+      id: 'budget',
+      label: 'Budget',
+      icon: 'dollarsign.circle.fill' as const,
+      color: palette.warning,
+      onPress: () => router.push('/(tabs)/budget'),
+    },
+  ];
 
   return (
-    <View style={[styles.container, isDark && styles.containerDark]}>
-      <ScrollView 
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
+      <Animated.ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          Platform.OS === 'android' && { paddingTop: 48 },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={isDark ? '#4FC3F7' : '#0a7ea4'}
-            colors={isDark ? ['#4FC3F7'] : ['#0a7ea4']}
-            progressBackgroundColor={isDark ? '#2C2C2C' : '#FFFFFF'}
-            size="large"
-            title="Refreshing..."
-            titleColor={isDark ? '#4FC3F7' : '#0a7ea4'}
+            tintColor={palette.primary}
+            colors={[palette.primary]}
+            progressBackgroundColor={palette.surfaceSecondary}
           />
-        }>
-        {/* Hero Section */}
-        <HeroSection
-          family={family}
-          onNotificationPress={() => setActivityFeedVisible(true)}
-          notificationCount={notificationCount}
-        />
+        }
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          const offsetY = e.nativeEvent.contentOffset.y;
+          headerOpacity.value = withTiming(offsetY > 100 ? 0.95 : 1);
+        }}
+      >
+        <Animated.View entering={FadeIn.duration(800)}>
+          <LinearGradient
+            colors={
+              isDark
+                ? [palette.surfaceTertiary, palette.background]
+                : ['rgba(10, 126, 164, 0.03)', 'rgba(10, 126, 164, 0.01)']
+            }
+            style={[
+              styles.heroContainer,
+              {
+                paddingTop:
+                  Platform.OS === 'android'
+                    ? spacing.lg
+                    : Math.max(insets.top, spacing.md),
+              },
+            ]}
+          >
+            <HeroSection
+              familyName={family?.name}
+              onNotificationPress={() => setActivityFeedVisible(true)}
+              notificationCount={notificationCount}
+            />
+          </LinearGradient>
+        </Animated.View>
 
-        {/* Dashboard Carousel */}
-        <DashboardCarousel>
-          <BudgetCard
-            categories={activeBudgets || []}
-            totalLimit={totalBudgetLimit || 0}
-            totalSpent={totalBudgetSpent || 0}
-            totalRemaining={totalBudgetRemaining || 0}
-            percentageUsed={budgetPercentageUsed || 0}
-            pieChartData={pieChartData || []}
-            activePeriod={activePeriod}
-            calculateCategorySpent={(categoryName: string) => {
-              const category = activeBudgets?.find((cat) => cat.name === categoryName);
-              return category ? calculateCategorySpent(category) : 0;
-            }}
-            getBudgetStatusColor={getBudgetStatusColor}
-          />
-          <ShoppingCard activeLists={activeShoppingLists} allItems={allShoppingItems} />
-          <TasksCard tasks={tasks} />
-          <EventsCard events={events} />
-        </DashboardCarousel>
+        <Animated.View style={styles.section} entering={FadeInDown.delay(100).duration(600)}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: palette.foreground }]}>{`Today's Menu`}</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/meal-planner')} activeOpacity={0.8}>
+              <Text style={[styles.viewAllText, { color: palette.primary }]}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          <TodayMealsCard todayStr={todayStr} entriesByDate={mealPlannerEntriesByDate} />
+        </Animated.View>
 
-        {/* Quick Action Buttons */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={[styles.actionButton, isDark && styles.actionButtonDark]}
-            onPress={openAddShoppingModal}
-            activeOpacity={0.7}>
-            <IconSymbol name="cart.fill" size={18} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Shopping</Text>
-          </TouchableOpacity>
+        <Animated.View style={styles.section} entering={FadeInDown.delay(200).duration(600)}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: palette.foreground }]}>Family Dashboard</Text>
+            <TimePeriodSelector selectedPeriod={selectedTimePeriod} onPeriodChange={setSelectedTimePeriod} />
+          </View>
+          <DashboardCarousel>
+            <BudgetCard
+              categories={activeBudgets}
+              totalLimit={totalBudgetLimit}
+              totalSpent={totalBudgetSpent}
+              totalRemaining={totalBudgetRemaining}
+              percentageUsed={budgetPercentageUsed}
+              pieChartData={pieChartData}
+              activePeriod={activePeriod}
+              calculateCategorySpent={(categoryName: string) => {
+                const category = activeBudgets.find((c) => c.name === categoryName);
+                return category ? calculateCategorySpent(category) : 0;
+              }}
+              getBudgetStatusColor={getBudgetStatusColor}
+            />
+            <ShoppingCard activeLists={activeShoppingLists} allItems={allShoppingItems} />
+            <TasksCard tasks={tasks} />
+            <EventsCard events={events} />
+          </DashboardCarousel>
+        </Animated.View>
 
-          <TouchableOpacity
-            style={[styles.actionButton, isDark && styles.actionButtonDark]}
-            onPress={openAddTaskModal}
-            activeOpacity={0.7}>
-            <IconSymbol name="checkmark.square.fill" size={18} color={isDark ? '#66BB6A' : '#4CAF50'} />
-            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Task</Text>
-          </TouchableOpacity>
+        <Animated.View style={styles.section} entering={FadeInDown.delay(300).duration(600)}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: palette.foreground }]}>Quick Actions</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickActionsScrollContent}
+            snapToInterval={QUICK_ACTION_CARD_WIDTH + QUICK_ACTION_GAP}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            scrollEventThrottle={16}
+          >
+            {quickActions.map((action, index) => (
+              <TouchableOpacity
+                key={action.id}
+                style={[
+                  styles.quickActionCard,
+                  {
+                    backgroundColor: palette.surface,
+                    borderColor: palette.border,
+                    marginLeft: index === 0 ? 0 : QUICK_ACTION_GAP,
+                    width: QUICK_ACTION_CARD_WIDTH,
+                  },
+                  isDark && styles.quickActionCardShadowDark,
+                ]}
+                onPress={action.onPress}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.quickActionIconWrap, { backgroundColor: `${action.color}18` }]}>
+                  <IconSymbol name={action.icon} size={26} color={action.color} />
+                </View>
+                <Text style={[styles.quickActionLabel, { color: palette.foreground }]} numberOfLines={1}>
+                  {action.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Animated.View>
 
-          <TouchableOpacity
-            style={[styles.actionButton, isDark && styles.actionButtonDark]}
-            onPress={openAddEventModal}
-            activeOpacity={0.7}>
-            <IconSymbol name="calendar" size={18} color={isDark ? '#AB47BC' : '#9C27B0'} />
-            <Text style={[styles.actionLabel, isDark && styles.actionLabelDark]}>Event</Text>
-          </TouchableOpacity>
-        </View>
+        <Animated.View style={styles.section} entering={FadeInDown.delay(400).duration(600)}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: palette.foreground }]}>Recent Notes</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/notes')}>
+              <Text style={[styles.viewAllText, { color: palette.primary }]}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          <NotesCard notes={notes.slice(0, 3)} />
+        </Animated.View>
 
-        {/* Notes Card */}
-        <View style={styles.notesSection}>
-          <NotesCard notes={notes} />
-        </View>
+        <Animated.View style={styles.section} entering={FadeInDown.delay(500).duration(600)}>
+          <View style={[styles.quoteCard, { backgroundColor: palette.surfaceTertiary }]}>
+            <IconSymbol name="quote.opening" size={24} color={palette.muted} />
+            <Text style={[styles.quoteText, { color: palette.foreground }]}>
+              Together, we can achieve anything. Family is where life begins and love never ends.
+            </Text>
+            <Text style={[styles.quoteAuthor, { color: palette.muted }]}>— Family First</Text>
+          </View>
+        </Animated.View>
+      </Animated.ScrollView>
 
-        {/* Motivational Quote */}
-        <View style={[styles.quoteSection, isDark && styles.quoteSectionDark]}>
-          <Text style={[styles.quoteText, isDark && styles.quoteTextDark]}>
-            &ldquo;Together, we can achieve anything. Family is where life begins and love never ends.&rdquo;
-          </Text>
-        </View>
-      </ScrollView>
+      {family && (
+        <AnimatedTouchableOpacity
+          style={[styles.fab, { backgroundColor: palette.primary }]}
+          onPress={() => {
+            Alert.alert('Add New', 'What would you like to add?', [
+              { text: 'Shopping List', onPress: () => router.push('/(tabs)/shopping') },
+              { text: 'Task', onPress: openAddTaskModal },
+              { text: 'Event', onPress: openAddEventModal },
+              { text: 'Cancel', style: 'cancel' },
+            ]);
+          }}
+          activeOpacity={0.8}
+          entering={FadeIn.delay(800).duration(600)}
+        >
+          <IconSymbol name="plus" size={24} color="#FFFFFF" />
+        </AnimatedTouchableOpacity>
+      )}
 
-      {/* Activity Feed Modal */}
       <ActivityFeed
         visible={activityFeedVisible}
         onClose={() => setActivityFeedVisible(false)}
@@ -670,1434 +622,364 @@ export default function HomeScreen() {
         }}
       />
 
-      {/* Event Modal */}
       <Modal
         visible={eventModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setEventModalVisible(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}>
-          <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
-                {editingEvent ? 'Edit Event' : 'Add Event'}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setEventModalVisible(false);
-                  setEditingEvent(null);
-                }}
-                style={styles.modalCloseButton}>
-                <IconSymbol name="xmark.circle.fill" size={24} color={isDark ? '#938F99' : '#79747E'} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Event Title</Text>
-              <TextInput
-                style={[styles.modalInput, isDark && styles.modalInputDark]}
-                placeholder="e.g., Family Dinner"
-                placeholderTextColor={isDark ? '#666' : '#999'}
-                value={eventFormData.title}
-                onChangeText={(text) => setEventFormData({ ...eventFormData, title: text })}
-                autoFocus
-              />
-
-              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Date</Text>
-              <TextInput
-                style={[styles.modalInput, isDark && styles.modalInputDark]}
-                value={eventFormData.date}
-                onChangeText={(text) => setEventFormData({ ...eventFormData, date: text })}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={isDark ? '#666' : '#999'}
-              />
-
-              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>
-                Description (Optional)
-              </Text>
-              <TextInput
-                style={[styles.modalInput, styles.modalTextArea, isDark && styles.modalInputDark]}
-                placeholder="Add details..."
-                placeholderTextColor={isDark ? '#666' : '#999'}
-                value={eventFormData.description}
-                onChangeText={(text) => setEventFormData({ ...eventFormData, description: text })}
-                multiline
-                numberOfLines={3}
-              />
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonCancel, isDark && styles.modalButtonCancelDark]}
-                  onPress={() => {
-                    setEventModalVisible(false);
-                    setEditingEvent(null);
-                  }}>
-                  <Text style={[styles.modalButtonText, styles.modalButtonTextCancel]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonSave, isDark && styles.modalButtonSaveDark]}
-                  onPress={handleSaveEvent}>
-                  <Text style={styles.modalButtonText}>Save</Text>
+        statusBarTranslucent
+        onRequestClose={() => setEventModalVisible(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContainer}
+          >
+            <View style={[styles.modalContent, { backgroundColor: palette.surface }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: palette.border }]}>
+                <Text style={[styles.modalTitle, { color: palette.foreground }]}>
+                  {editingEvent ? 'Edit Event' : 'New Event'}
+                </Text>
+                <TouchableOpacity onPress={() => setEventModalVisible(false)} style={styles.modalClose}>
+                  <IconSymbol name="xmark.circle.fill" size={24} color={palette.muted} />
                 </TouchableOpacity>
               </View>
+
+              <View style={styles.modalBody}>
+                <Text style={[styles.modalLabel, { color: palette.foreground }]}>Event Title</Text>
+                <TextInput
+                  style={[styles.modalInput, { color: palette.foreground, borderColor: palette.border }]}
+                  placeholder="Family dinner..."
+                  placeholderTextColor={palette.muted}
+                  value={eventFormData.title}
+                  onChangeText={(text) => setEventFormData({ ...eventFormData, title: text })}
+                  autoFocus
+                />
+
+                <Text style={[styles.modalLabel, { color: palette.foreground }]}>Date</Text>
+                <TextInput
+                  style={[styles.modalInput, { color: palette.foreground, borderColor: palette.border }]}
+                  value={eventFormData.date}
+                  onChangeText={(text) => setEventFormData({ ...eventFormData, date: text })}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={palette.muted}
+                />
+
+                <Text style={[styles.modalLabel, { color: palette.foreground }]}>Description</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.modalTextArea, { color: palette.foreground, borderColor: palette.border }]}
+                  placeholder="Add details..."
+                  placeholderTextColor={palette.muted}
+                  value={eventFormData.description}
+                  onChangeText={(text) => setEventFormData({ ...eventFormData, description: text })}
+                  multiline
+                  numberOfLines={3}
+                />
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel, { borderColor: palette.border }]}
+                    onPress={() => setEventModalVisible(false)}
+                  >
+                    <Text style={[styles.modalButtonTextCancel, { color: palette.foreground }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonPrimary, { backgroundColor: palette.primary }]}
+                    onPress={handleSaveEvent}
+                  >
+                    <Text style={styles.modalButtonTextPrimary}>{editingEvent ? 'Update' : 'Create'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
-      {/* Task Modal */}
       <Modal
         visible={taskModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setTaskModalVisible(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}>
-          <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>Add Task</Text>
-              <TouchableOpacity
-                onPress={() => setTaskModalVisible(false)}
-                style={styles.modalCloseButton}>
-                <IconSymbol name="xmark.circle.fill" size={24} color={isDark ? '#938F99' : '#79747E'} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Task Title</Text>
-              <TextInput
-                style={[styles.modalInput, isDark && styles.modalInputDark]}
-                placeholder="e.g., Clean the garage"
-                placeholderTextColor={isDark ? '#666' : '#999'}
-                value={taskFormData.title}
-                onChangeText={(text) => setTaskFormData({ ...taskFormData, title: text })}
-                autoFocus
-              />
-
-              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Assign To</Text>
-              <View style={styles.pickerContainer}>
-                {familyMembers.map((member) => (
-                  <TouchableOpacity
-                    key={member.id}
-                    style={[
-                      styles.memberOption,
-                      isDark && styles.memberOptionDark,
-                      taskFormData.assignedTo === member.id && styles.memberOptionSelected,
-                      taskFormData.assignedTo === member.id && isDark && styles.memberOptionSelectedDark,
-                    ]}
-                    onPress={() => setTaskFormData({ ...taskFormData, assignedTo: member.id })}>
-                    <Text
-                      style={[
-                        styles.memberOptionText,
-                        isDark && styles.memberOptionTextDark,
-                        taskFormData.assignedTo === member.id && styles.memberOptionTextSelected,
-                      ]}>
-                      {member.name}
-                    </Text>
-                    {taskFormData.assignedTo === member.id && (
-                      <IconSymbol name="checkmark.circle.fill" size={20} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>Due Date</Text>
-              <TextInput
-                style={[styles.modalInput, isDark && styles.modalInputDark]}
-                value={taskFormData.dueDate}
-                onChangeText={(text) => setTaskFormData({ ...taskFormData, dueDate: text })}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={isDark ? '#666' : '#999'}
-              />
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonCancel, isDark && styles.modalButtonCancelDark]}
-                  onPress={() => setTaskModalVisible(false)}>
-                  <Text style={[styles.modalButtonText, styles.modalButtonTextCancel]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonSave, isDark && styles.modalButtonSaveDark]}
-                  onPress={handleSaveTask}>
-                  <Text style={styles.modalButtonText}>Add</Text>
+        statusBarTranslucent
+        onRequestClose={() => setTaskModalVisible(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContainer}
+          >
+            <View style={[styles.modalContent, { backgroundColor: palette.surface }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: palette.border }]}>
+                <Text style={[styles.modalTitle, { color: palette.foreground }]}>New Task</Text>
+                <TouchableOpacity onPress={() => setTaskModalVisible(false)} style={styles.modalClose}>
+                  <IconSymbol name="xmark.circle.fill" size={24} color={palette.muted} />
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
-      {/* Budget Detail Modal */}
-      <Modal
-        visible={budgetDetailModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setBudgetDetailModalVisible(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}>
-          <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
-            {selectedBudgetCategory && (
-              <>
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
-                    {selectedBudgetCategory.name}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setBudgetDetailModalVisible(false)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <IconSymbol name="xmark.circle.fill" size={24} color={isDark ? '#938F99' : '#999'} />
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.modalBody}>
+                <Text style={[styles.modalLabel, { color: palette.foreground }]}>Task Title</Text>
+                <TextInput
+                  style={[styles.modalInput, { color: palette.foreground, borderColor: palette.border }]}
+                  placeholder="Clean the garage..."
+                  placeholderTextColor={palette.muted}
+                  value={taskFormData.title}
+                  onChangeText={(text) => setTaskFormData({ ...taskFormData, title: text })}
+                  autoFocus
+                />
 
-                <View style={styles.budgetDetailSummary}>
-                  <View style={styles.budgetDetailAmount}>
-                    <Text style={[styles.budgetDetailLabel, isDark && styles.budgetDetailLabelDark]}>
-                      Spent
-                    </Text>
-                    <Text style={[styles.budgetDetailValue, isDark && styles.budgetDetailValueDark]}>
-                      {formatCurrency(selectedBudgetCategory.spent)} / {formatCurrency(selectedBudgetCategory.limit)}
-                    </Text>
-                  </View>
-                  <View style={styles.budgetDetailProgress}>
-                    <View
+                <Text style={[styles.modalLabel, { color: palette.foreground }]}>Assign To</Text>
+                <View style={styles.memberPicker}>
+                  {familyMembers.map((member) => (
+                    <TouchableOpacity
+                      key={member.id}
                       style={[
-                        styles.budgetDetailBar,
-                        {
-                          width: `${Math.min((selectedBudgetCategory.spent / selectedBudgetCategory.limit) * 100, 100)}%`,
-                          backgroundColor:
-                            (selectedBudgetCategory.spent / selectedBudgetCategory.limit) * 100 >= 100
-                              ? '#F44336'
-                              : (selectedBudgetCategory.spent / selectedBudgetCategory.limit) * 100 >= 80
-                              ? '#FF9800'
-                              : isDark
-                              ? '#4FC3F7'
-                              : '#0a7ea4',
-                        },
+                        styles.memberOption,
+                        { borderColor: palette.border },
+                        taskFormData.assignedTo === member.id && { backgroundColor: palette.primary + '20', borderColor: palette.primary },
                       ]}
-                    />
-                  </View>
+                      onPress={() => setTaskFormData({ ...taskFormData, assignedTo: member.id })}
+                    >
+                      <Text
+                        style={[
+                          styles.memberOptionText,
+                          { color: palette.foreground },
+                          taskFormData.assignedTo === member.id && { color: palette.primary, fontWeight: '600' },
+                        ]}
+                      >
+                        {member.name}
+                      </Text>
+                      {taskFormData.assignedTo === member.id && (
+                        <IconSymbol name="checkmark.circle.fill" size={20} color={palette.primary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
                 </View>
 
-                <ScrollView style={styles.budgetDetailScroll} showsVerticalScrollIndicator={false}>
-                  {/* Direct Expenses Section */}
-                  <View style={styles.budgetDetailSection}>
-                    <Text style={[styles.budgetDetailSectionTitle, isDark && styles.budgetDetailSectionTitleDark]}>
-                      Direct Expenses
-                    </Text>
-                    {directExpenses
-                      .filter((exp) => exp.budgetCategoryName === selectedBudgetCategory.name)
-                      .length === 0 ? (
-                      <Text style={[styles.budgetDetailEmpty, isDark && styles.budgetDetailEmptyDark]}>
-                        No direct expenses
-                      </Text>
-                    ) : (
-                      directExpenses
-                        .filter((exp) => exp.budgetCategoryName === selectedBudgetCategory.name)
-                        .map((expense) => (
-                          <View key={expense.id} style={[styles.budgetDetailItem, isDark && styles.budgetDetailItemDark]}>
-                            <View style={styles.budgetDetailItemLeft}>
-                              <IconSymbol name="dollarsign.circle.fill" size={20} color={isDark ? '#66BB6A' : '#4CAF50'} />
-                              <View style={styles.budgetDetailItemInfo}>
-                                <Text style={[styles.budgetDetailItemName, isDark && styles.budgetDetailItemNameDark]}>
-                                  {expense.description}
-                                </Text>
-                                <Text style={[styles.budgetDetailItemDate, isDark && styles.budgetDetailItemDateDark]}>
-                                  {new Date(expense.createdAt.toMillis()).toLocaleDateString()}
-                                </Text>
-                              </View>
-                            </View>
-                            <Text style={[styles.budgetDetailItemAmount, isDark && styles.budgetDetailItemAmountDark]}>
-                              {formatCurrency(expense.amount)}
-                            </Text>
-                          </View>
-                        ))
-                    )}
-                  </View>
+                <Text style={[styles.modalLabel, { color: palette.foreground }]}>Due Date</Text>
+                <TextInput
+                  style={[styles.modalInput, { color: palette.foreground, borderColor: palette.border }]}
+                  value={taskFormData.dueDate}
+                  onChangeText={(text) => setTaskFormData({ ...taskFormData, dueDate: text })}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={palette.muted}
+                />
 
-                  {/* Shopping Lists with Items in this Category */}
-                  <View style={styles.budgetDetailSection}>
-                    <Text style={[styles.budgetDetailSectionTitle, isDark && styles.budgetDetailSectionTitleDark]}>
-                      Shopping Lists
-                    </Text>
-                    {shoppingLists.length === 0 ? (
-                      <Text style={[styles.budgetDetailEmpty, isDark && styles.budgetDetailEmptyDark]}>
-                        No shopping lists
-                      </Text>
-                    ) : (
-                      shoppingLists.map((list) => {
-                        // Note: We can't get items without selecting the list, so we'll just show the list
-                        // In a future update, we could subscribe to all items or create a service to get items by category
-                        return (
-                          <TouchableOpacity
-                            key={list.id}
-                            style={[styles.budgetDetailItem, isDark && styles.budgetDetailItemDark]}
-                            onPress={() => {
-                              setBudgetDetailModalVisible(false);
-                              router.push('/(tabs)/shopping');
-                            }}>
-                            <View style={styles.budgetDetailItemLeft}>
-                              <IconSymbol
-                                name="list.bullet.rectangle.fill"
-                                size={20}
-                                color={isDark ? '#4FC3F7' : '#0a7ea4'}
-                              />
-                              <Text style={[styles.budgetDetailItemName, isDark && styles.budgetDetailItemNameDark]}>
-                                {list.name}
-                              </Text>
-                            </View>
-                            <IconSymbol name="chevron.right" size={16} color={isDark ? '#938F99' : '#999'} />
-                          </TouchableOpacity>
-                        );
-                      })
-                    )}
-                  </View>
-                </ScrollView>
-              </>
-            )}
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Family Modal */}
-      <Modal
-        visible={familyModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          setFamilyModalVisible(false);
-          setFamilyModalMode(null);
-          setFamilyName('');
-          setInviteCode('');
-        }}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}>
-          <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
-                {family ? 'Family Invite Code' : (familyModalMode === 'create' ? 'Create Family' : familyModalMode === 'join' ? 'Join Family' : 'Add Family')}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setFamilyModalVisible(false);
-                  setFamilyModalMode(null);
-                  setFamilyName('');
-                  setInviteCode('');
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <IconSymbol name="xmark.circle.fill" size={24} color={isDark ? '#938F99' : '#79747E'} />
-              </TouchableOpacity>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel, { borderColor: palette.border }]}
+                    onPress={() => setTaskModalVisible(false)}
+                  >
+                    <Text style={[styles.modalButtonTextCancel, { color: palette.foreground }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonPrimary, { backgroundColor: palette.primary }]}
+                    onPress={handleSaveTask}
+                  >
+                    <Text style={styles.modalButtonTextPrimary}>Add Task</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-
-            {family ? (
-              // Show invite code if user already has a family
-              <View style={styles.inviteCodeContainer}>
-                <Text style={[styles.inviteCodeLabel, isDark && styles.inviteCodeLabelDark]}>
-                  Share this code with family members to invite them
-                </Text>
-                <View style={[styles.inviteCodeBox, isDark && styles.inviteCodeBoxDark]}>
-                  <Text style={[styles.inviteCodeText, isDark && styles.inviteCodeTextDark]}>
-                    {family.inviteCode}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.copyButton, isDark && styles.copyButtonDark]}
-                  onPress={async () => {
-                    try {
-                      await Clipboard.setStringAsync(family.inviteCode);
-                      Alert.alert('Copied!', 'Invite code copied to clipboard');
-                    } catch (error) {
-                      Alert.alert('Error', 'Failed to copy invite code');
-                    }
-                  }}>
-                  <IconSymbol name="doc.on.doc.fill" size={20} color="#FFFFFF" />
-                  <Text style={styles.copyButtonText}>Copy Invite Code</Text>
-                </TouchableOpacity>
-                <Text style={[styles.inviteCodeHint, isDark && styles.inviteCodeHintDark]}>
-                  Family members can use this code to join your family
-                </Text>
-              </View>
-            ) : familyModalMode === null ? (
-              <View style={styles.familyModeSelection}>
-                <TouchableOpacity
-                  style={[styles.familyModeButton, isDark && styles.familyModeButtonDark]}
-                  onPress={() => setFamilyModalMode('create')}>
-                  <IconSymbol name="plus.circle.fill" size={32} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-                  <Text style={[styles.familyModeButtonText, isDark && styles.familyModeButtonTextDark]}>
-                    Create Family
-                  </Text>
-                  <Text style={[styles.familyModeButtonSubtext, isDark && styles.familyModeButtonSubtextDark]}>
-                    Start a new family group
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.familyModeButton, isDark && styles.familyModeButtonDark]}
-                  onPress={() => setFamilyModalMode('join')}>
-                  <IconSymbol name="person.2.fill" size={32} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
-                  <Text style={[styles.familyModeButtonText, isDark && styles.familyModeButtonTextDark]}>
-                    Join Family
-                  </Text>
-                  <Text style={[styles.familyModeButtonSubtext, isDark && styles.familyModeButtonSubtextDark]}>
-                    Join with an invite code
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : familyModalMode === 'create' ? (
-              <View style={styles.familyForm}>
-                <Text style={[styles.familyFormLabel, isDark && styles.familyFormLabelDark]}>
-                  Family Name
-                </Text>
-                <TextInput
-                  style={[styles.familyFormInput, isDark && styles.familyFormInputDark]}
-                  placeholder="Enter family name"
-                  placeholderTextColor={isDark ? '#666' : '#999'}
-                  value={familyName}
-                  onChangeText={setFamilyName}
-                  autoCapitalize="words"
-                  editable={!authLoading}
-                />
-                <TouchableOpacity
-                  style={[styles.familyFormButton, authLoading && styles.familyFormButtonDisabled]}
-                  onPress={handleCreateFamily}
-                  disabled={authLoading}>
-                  <Text style={styles.familyFormButtonText}>
-                    {authLoading ? 'Creating...' : 'Create Family'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.familyFormBackButton}
-                  onPress={() => setFamilyModalMode(null)}>
-                  <Text style={[styles.familyFormBackButtonText, isDark && styles.familyFormBackButtonTextDark]}>
-                    Back
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.familyForm}>
-                <Text style={[styles.familyFormLabel, isDark && styles.familyFormLabelDark]}>
-                  Invite Code
-                </Text>
-                <TextInput
-                  style={[styles.familyFormInput, isDark && styles.familyFormInputDark]}
-                  placeholder="Enter invite code"
-                  placeholderTextColor={isDark ? '#666' : '#999'}
-                  value={inviteCode}
-                  onChangeText={setInviteCode}
-                  autoCapitalize="characters"
-                  editable={!authLoading}
-                />
-                <TouchableOpacity
-                  style={[styles.familyFormButton, authLoading && styles.familyFormButtonDisabled]}
-                  onPress={handleJoinFamily}
-                  disabled={authLoading}>
-                  <Text style={styles.familyFormButtonText}>
-                    {authLoading ? 'Joining...' : 'Join Family'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.familyFormBackButton}
-                  onPress={() => setFamilyModalMode(null)}>
-                  <Text style={[styles.familyFormBackButtonText, isDark && styles.familyFormBackButtonTextDark]}>
-                    Back
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
-
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  containerDark: {
-    backgroundColor: '#1C1B1F',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 80, // Space for tab bar
+    paddingBottom: 100,
   },
-  header: {
-    padding: 20,
-    paddingTop: 60,
-    paddingBottom: 28,
-    backgroundColor: '#FFFFFF',
-  },
-  headerDark: {
-    backgroundColor: '#1C1B1F',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    flex: 1,
-  },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#0a7ea4',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  avatarDark: {
-    backgroundColor: '#4FC3F7',
-  },
-  avatarText: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  headerText: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  greeting: {
-    fontSize: 20,
-    color: '#111',
-    fontWeight: '700',
-    marginBottom: 4,
-    letterSpacing: -0.3,
-  },
-  greetingDark: {
-    color: '#E6E1E5',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 10,
-    lineHeight: 20,
-  },
-  subtitleDark: {
-    color: '#938F99',
-  },
-  familyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: '#E3F2FD',
-  },
-  familyName: {
-    fontSize: 12,
-    color: '#0a7ea4',
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  familyNameDark: {
-    color: '#4FC3F7',
-  },
-  dashboardSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statCardDark: {
-    backgroundColor: '#2C2C2C',
-    borderColor: '#3C3C3C',
-  },
-  statIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  statNumber: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111',
-    marginBottom: 2,
-    letterSpacing: -0.3,
-  },
-  statNumberDark: {
-    color: '#E6E1E5',
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#666',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  statLabelDark: {
-    color: '#938F99',
+  heroContainer: {
+    paddingHorizontal: spacing.screenHorizontal,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    borderBottomLeftRadius: radius.xxl,
+    borderBottomRightRadius: radius.xxl,
+    overflow: 'hidden',
   },
   section: {
-    padding: 16,
+    paddingHorizontal: spacing.screenHorizontal,
+    marginTop: spacing.sectionGap,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    marginBottom: spacing.itemGap,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111',
+    fontSize: typography.fontSizes.xl,
+    fontWeight: typography.fontWeights.bold,
+    letterSpacing: -0.3,
   },
-  sectionTitleDark: {
-    color: '#E6E1E5',
+  viewAllText: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.semibold,
   },
-  addButton: {
-    flexDirection: 'row',
+  quickActionsScrollContent: {
+    paddingVertical: spacing.sm,
+    paddingRight: spacing.screenHorizontal,
+  },
+  quickActionCard: {
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#0a7ea4',
-    borderRadius: 8,
-  },
-  addButtonDark: {
-    backgroundColor: '#4FC3F7',
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptySection: {
-    padding: 32,
-    alignItems: 'center',
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-  },
-  emptyTextDark: {
-    color: '#666',
-  },
-  emptyButton: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-  },
-  emptyButtonDark: {
-    backgroundColor: '#1E3A5F',
-  },
-  emptyButtonText: {
-    color: '#0a7ea4',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyButtonTextDark: {
-    color: '#4FC3F7',
-  },
-  eventItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  eventItemDark: {
-    backgroundColor: '#2C2C2C',
-    borderColor: '#3C3C3C',
-  },
-  eventDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 12,
-  },
-  eventContent: {
-    flex: 1,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111',
-    marginBottom: 4,
-  },
-  eventTitleDark: {
-    color: '#E6E1E5',
-  },
-  eventMeta: {
-    gap: 2,
-  },
-  eventDate: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  eventDescription: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  eventDescriptionDark: {
-    color: '#938F99',
-  },
-  eventCreatedAt: {
-    fontSize: 11,
-    color: '#999',
-    marginTop: 6,
-    fontStyle: 'italic',
-  },
-  eventCreatedAtDark: {
-    color: '#666',
-  },
-  eventHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-    gap: 8,
-  },
-  creatorBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#F0F0F0',
-    alignSelf: 'flex-start',
-  },
-  creatorBadgeDark: {
-    backgroundColor: '#3C3C3C',
-  },
-  creatorAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#0a7ea4',
     justifyContent: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    minHeight: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  quickActionCardShadowDark: {
+    shadowOpacity: 0.15,
+    elevation: 4,
+  },
+  quickActionIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  quickActionLabel: {
+    fontSize: typography.fontSizes.md,
+    fontWeight: typography.fontWeights.semibold,
+    textAlign: 'center',
+  },
+  quoteCard: {
+    padding: spacing.xl,
+    borderRadius: radius.lg,
     alignItems: 'center',
   },
-  creatorAvatarDark: {
-    backgroundColor: '#4FC3F7',
+  quoteText: {
+    fontSize: typography.fontSizes.lg,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    lineHeight: typography.lineHeights.lg,
+    marginVertical: spacing.md,
   },
-  creatorInitials: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  quoteAuthor: {
+    fontSize: typography.fontSizes.sm,
+    fontStyle: 'italic',
+    marginTop: spacing.md,
+    alignSelf: 'flex-end',
   },
-  creatorName: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#666',
+  fab: {
+    position: 'absolute',
+    bottom: spacing.xxl,
+    right: spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: radius.xxl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
-  creatorNameDark: {
-    color: '#938F99',
-  },
-  eventAction: {
-    padding: 4,
-  },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    flex: 1,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    maxHeight: '80%',
-  },
-  modalContentDark: {
-    backgroundColor: '#2C2C2C',
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    overflow: 'hidden',
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    padding: spacing.xl,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111',
+    fontSize: typography.fontSizes.xl,
+    fontWeight: typography.fontWeights.bold,
   },
-  modalTitleDark: {
-    color: '#E6E1E5',
-  },
-  modalCloseButton: {
-    padding: 4,
+  modalClose: {
+    padding: spacing.xs,
   },
   modalBody: {
-    gap: 16,
+    padding: spacing.xl,
+    gap: spacing.lg,
   },
   modalLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-  },
-  modalLabelDark: {
-    color: '#938F99',
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.medium,
+    marginBottom: spacing.xs,
   },
   modalInput: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    color: '#111',
-  },
-  modalInputDark: {
-    backgroundColor: '#1E1E1E',
-    borderColor: '#3C3C3C',
-    color: '#E6E1E5',
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: typography.fontSizes.md,
   },
   modalTextArea: {
     minHeight: 80,
     textAlignVertical: 'top',
   },
-  modalButtons: {
+  modalActions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: spacing.md,
+    marginTop: spacing.xl,
   },
   modalButton: {
     flex: 1,
-    padding: 16,
-    borderRadius: 12,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalButtonCancel: {
-    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
   },
-  modalButtonCancelDark: {
-    backgroundColor: '#1E1E1E',
+  modalButtonPrimary: {},
+  modalButtonTextCancel: {
+    fontSize: typography.fontSizes.md,
+    fontWeight: typography.fontWeights.medium,
   },
-  modalButtonSave: {
-    backgroundColor: '#0a7ea4',
-  },
-  modalButtonSaveDark: {
-    backgroundColor: '#4FC3F7',
-  },
-  modalButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+  modalButtonTextPrimary: {
+    fontSize: typography.fontSizes.md,
+    fontWeight: typography.fontWeights.medium,
     color: '#FFFFFF',
   },
-  modalButtonTextCancel: {
-    color: '#666',
-  },
-  categoryContainer: {
+  memberPicker: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
-  },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  categoryChipDark: {
-    backgroundColor: '#1E1E1E',
-    borderColor: '#3C3C3C',
-  },
-  categoryChipSelected: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#0a7ea4',
-  },
-  categoryChipSelectedDark: {
-    backgroundColor: '#1E3A5F',
-    borderColor: '#4FC3F7',
-  },
-  categoryChipText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  categoryChipTextDark: {
-    color: '#938F99',
-  },
-  categoryChipTextSelected: {
-    color: '#0a7ea4',
-    fontWeight: '600',
-  },
-  rowInputs: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  halfInput: {
-    flex: 1,
-  },
-  pickerContainer: {
-    gap: 8,
+    gap: spacing.sm,
   },
   memberOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#F5F5F5',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  memberOptionDark: {
-    backgroundColor: '#1E1E1E',
-    borderColor: '#3C3C3C',
-  },
-  memberOptionSelected: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#0a7ea4',
-  },
-  memberOptionSelectedDark: {
-    backgroundColor: '#1E3A5F',
-    borderColor: '#4FC3F7',
   },
   memberOptionText: {
-    fontSize: 16,
-    color: '#111',
-    fontWeight: '500',
-  },
-  memberOptionTextDark: {
-    color: '#E6E1E5',
-  },
-  memberOptionTextSelected: {
-    color: '#0a7ea4',
-    fontWeight: '600',
-  },
-  // Budget Styles
-  budgetSection: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
-  manageButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F5',
-  },
-  manageButtonDark: {
-    backgroundColor: '#2C2C2C',
-  },
-  manageButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0a7ea4',
-  },
-  manageButtonTextDark: {
-    color: '#4FC3F7',
-  },
-  budgetCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginTop: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  budgetCardDark: {
-    backgroundColor: '#2C2C2C',
-  },
-  budgetSummaryRow: {
-    flexDirection: 'row',
-    marginBottom: 24,
-    gap: 20,
-  },
-  budgetSummaryLeft: {
-    flex: 1,
-  },
-  budgetSummaryHeader: {
-    marginBottom: 16,
-  },
-  budgetSummaryLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  budgetSummaryLabelDark: {
-    color: '#938F99',
-  },
-  budgetSummaryAmount: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#0a7ea4',
-    marginBottom: 4,
-    letterSpacing: -0.4,
-  },
-  budgetSummaryLimit: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#999',
-  },
-  budgetSummaryLimitDark: {
-    color: '#666',
-  },
-  pieChartContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  budgetCategoriesList: {
-    gap: 12,
-  },
-  budgetCategoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 14,
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  budgetCategoryItemDark: {
-    backgroundColor: '#1E1E1E',
-    borderColor: '#3C3C3C',
-  },
-  budgetCategoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  budgetCategoryDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  budgetCategoryInfo: {
-    flex: 1,
-  },
-  budgetCategoryName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111',
-    marginBottom: 2,
-  },
-  budgetCategoryNameDark: {
-    color: '#E6E1E5',
-  },
-  budgetCategoryAmount: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#666',
-  },
-  budgetCategoryAmountDark: {
-    color: '#938F99',
-  },
-  budgetCategoryRight: {
-    alignItems: 'flex-end',
-  },
-  budgetCategoryPercentage: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0a7ea4',
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: 14,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  viewAllButtonDark: {
-    backgroundColor: '#1E1E1E',
-  },
-  viewAllButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0a7ea4',
-  },
-  viewAllButtonTextDark: {
-    color: '#4FC3F7',
-  },
-  // Budget Detail Modal Styles
-  budgetDetailSummary: {
-    marginBottom: 24,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  budgetDetailAmount: {
-    marginBottom: 12,
-  },
-  budgetDetailLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  budgetDetailLabelDark: {
-    color: '#938F99',
-  },
-  budgetDetailValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111',
-  },
-  budgetDetailValueDark: {
-    color: '#E6E1E5',
-  },
-  budgetDetailProgress: {
-    height: 8,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  budgetDetailBar: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  budgetDetailScroll: {
-    flex: 1,
-  },
-  budgetDetailSection: {
-    marginBottom: 32,
-  },
-  budgetDetailSectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111',
-    marginBottom: 16,
-  },
-  budgetDetailSectionTitleDark: {
-    color: '#E6E1E5',
-  },
-  budgetDetailItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  budgetDetailItemDark: {
-    backgroundColor: '#2C2C2C',
-    borderColor: '#3C3C3C',
-  },
-  budgetDetailItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  budgetDetailItemInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  budgetDetailItemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111',
-  },
-  budgetDetailItemNameDark: {
-    color: '#E6E1E5',
-  },
-  budgetDetailItemDate: {
-    fontSize: 12,
-    color: '#999',
-  },
-  budgetDetailItemDateDark: {
-    color: '#666',
-  },
-  budgetDetailItemAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0a7ea4',
-  },
-  budgetDetailItemAmountDark: {
-    color: '#4FC3F7',
-  },
-  budgetDetailEmpty: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
-    padding: 16,
-    textAlign: 'center',
-  },
-  budgetDetailEmptyDark: {
-    color: '#666',
-  },
-  addFamilyButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#E3F2FD',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addFamilyButtonDark: {
-    backgroundColor: '#1E3A5F',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 20,
-    gap: 8,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-  },
-  actionButtonDark: {
-    backgroundColor: '#2C2C2C',
-    borderColor: '#3C3C3C',
-  },
-  actionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#111',
-    letterSpacing: 0.1,
-  },
-  actionLabelDark: {
-    color: '#E6E1E5',
-  },
-  notesSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  quoteSection: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 32,
-    alignItems: 'center',
-  },
-  quoteSectionDark: {
-    // Same styling, just for consistency
-  },
-  quoteText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
-    letterSpacing: 0.2,
-    maxWidth: '90%',
-  },
-  quoteTextDark: {
-    color: '#938F99',
-  },
-  familyModeSelection: {
-    gap: 16,
-    marginTop: 8,
-  },
-  familyModeButton: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: '#F5F5F5',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-  },
-  familyModeButtonDark: {
-    backgroundColor: '#2C2C2C',
-    borderColor: '#3C3C3C',
-  },
-  familyModeButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111',
-    marginTop: 12,
-  },
-  familyModeButtonTextDark: {
-    color: '#E6E1E5',
-  },
-  familyModeButtonSubtext: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  familyModeButtonSubtextDark: {
-    color: '#938F99',
-  },
-  familyForm: {
-    marginTop: 8,
-  },
-  familyFormLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111',
-    marginBottom: 8,
-  },
-  familyFormLabelDark: {
-    color: '#E6E1E5',
-  },
-  familyFormInput: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#111',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  familyFormInputDark: {
-    backgroundColor: '#2C2C2C',
-    color: '#E6E1E5',
-    borderColor: '#3C3C3C',
-  },
-  familyFormButton: {
-    backgroundColor: '#0a7ea4',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  familyFormButtonDisabled: {
-    opacity: 0.6,
-  },
-  familyFormButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  familyFormBackButton: {
-    padding: 12,
-    alignItems: 'center',
-  },
-  familyFormBackButtonText: {
-    fontSize: 16,
-    color: '#0a7ea4',
-    fontWeight: '600',
-  },
-  familyFormBackButtonTextDark: {
-    color: '#4FC3F7',
-  },
-  inviteCodeContainer: {
-    marginTop: 24,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  inviteCodeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111',
-    textAlign: 'center',
-  },
-  inviteCodeLabelDark: {
-    color: '#E6E1E5',
-  },
-  inviteCodeBox: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-  },
-  inviteCodeBoxDark: {
-    backgroundColor: '#2C2C2C',
-    borderColor: '#3C3C3C',
-  },
-  inviteCodeText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#0a7ea4',
-    letterSpacing: 2,
-  },
-  inviteCodeTextDark: {
-    color: '#4FC3F7',
-  },
-  copyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#0a7ea4',
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 8,
-  },
-  copyButtonDark: {
-    backgroundColor: '#4FC3F7',
-  },
-  copyButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  inviteCodeHint: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  inviteCodeHintDark: {
-    color: '#938F99',
+    fontSize: typography.fontSizes.sm,
   },
 });

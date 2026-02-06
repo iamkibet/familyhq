@@ -99,6 +99,13 @@ const MAPPING: IconMapping = {
   'takeoutbag.and.cup.and.straw': 'lunch-dining',
   'fork.knife.circle.fill': 'dinner-dining',
   'birthday.cake.fill': 'cake',
+  // Filter
+  'line.3.horizontal.decrease.circle': 'filter-list',
+  'line.3.horizontal.decrease.circle.fill': 'filter-list',
+  'slider.horizontal.3': 'tune',
+  // Quote
+  'quote.opening': 'format-quote',
+  'quote.closing': 'format-quote',
 } as IconMapping;
 
 /**

@@ -1,221 +1,197 @@
 import React from 'react';
-import { View, Text, StyleSheet, ImageBackground, Dimensions, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useThemeScheme } from '@/hooks/use-theme-scheme';
-import { Family } from '@/src/types';
-import * as storageService from '@/src/services/storageService';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
-const { width } = Dimensions.get('window');
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useThemeScheme } from '@/hooks/use-theme-scheme';
+import { colors } from '@/src/theme/colors';
+import { radius } from '@/src/theme/radius';
+import { spacing } from '@/src/theme/spacing';
+import { typography } from '@/src/theme/typography';
+
+const AnimatedView = Animated.createAnimatedComponent(View);
+
+const VALUE_PROP = 'Plan meals, track expenses, and stay in sync.';
 
 interface HeroSectionProps {
-  family: Family | null;
+  familyName?: string | null;
   onNotificationPress?: () => void;
   notificationCount?: number;
 }
 
-export function HeroSection({ family, onNotificationPress, notificationCount = 0 }: HeroSectionProps) {
-  const colorScheme = useThemeScheme();
-  const isDark = colorScheme === 'dark';
-
-  const heroImageData = family?.heroImageUrl;
-  const familyName = family?.name || 'Your';
-  const heroImageUri = heroImageData ? storageService.getImageUri(heroImageData) : null;
+export function HeroSection({
+  familyName,
+  onNotificationPress,
+  notificationCount = 0,
+}: HeroSectionProps) {
+  const isDark = useThemeScheme() === 'dark';
+  const palette = colors[isDark ? 'dark' : 'light'];
   const hasNotifications = notificationCount > 0;
 
+  const headline = familyName?.trim()
+    ? `${familyName.trim()}'s Family Hub`
+    : 'Your Family Hub';
+
+  const greeting = getGreeting();
+
+  const borderColor = isDark
+    ? `${palette.primary}12`
+    : `${palette.primary}14`;
+
   return (
-    <View style={styles.container}>
-      {heroImageUri ? (
-        <ImageBackground
-          source={{ uri: heroImageUri }}
-          style={styles.imageBackground}
-          imageStyle={styles.imageStyle}
-          resizeMode="cover">
-          <LinearGradient
-            colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.6)']}
-            style={styles.gradient}>
+    <AnimatedView
+      entering={FadeInDown.duration(600).delay(80)}
+      style={[styles.container, { borderColor }]}
+    >
+      <LinearGradient
+        colors={
+          isDark
+            ? [palette.surface, palette.surfaceSecondary]
+            : [palette.surface, palette.surfaceSecondary]
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradient}
+      >
+        <View style={styles.content}>
+          <View style={styles.headerRow}>
+            <View style={styles.titleBlock}>
+              <Text style={[styles.greeting, { color: palette.muted }]} numberOfLines={1}>
+                {greeting}
+              </Text>
+              <Text
+                style={[styles.headline, { color: palette.foreground }]}
+                numberOfLines={1}
+              >
+                {headline}
+              </Text>
+            </View>
             {onNotificationPress && (
               <TouchableOpacity
-                style={styles.notificationButton}
                 onPress={onNotificationPress}
-                activeOpacity={0.8}>
-                <View style={styles.notificationIconContainer}>
-                  <IconSymbol name="bell.fill" size={22} color="#FFFFFF" />
-                  {hasNotifications && (
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationBadgeText}>
-                        {notificationCount > 9 ? '9+' : notificationCount}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            )}
-            <View style={styles.content}>
-              <Text style={styles.welcomeText}>Welcome to</Text>
-              <View style={styles.familyNameContainer}>
-                <Text style={styles.familyName}>{familyName}'s</Text>
-                <Text style={styles.familyLabel}>Family</Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </ImageBackground>
-      ) : (
-        <View style={[styles.placeholder, isDark && styles.placeholderDark]}>
-          {onNotificationPress && (
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={onNotificationPress}
-              activeOpacity={0.8}>
-              <View style={styles.notificationIconContainer}>
-                <IconSymbol name="bell.fill" size={22} color={isDark ? '#E6E1E5' : '#111'} />
+                style={[styles.bellBtn, { backgroundColor: palette.surfaceSecondary }]}
+                activeOpacity={0.7}
+              >
+                <IconSymbol name="bell.fill" size={22} color={palette.foreground} />
                 {hasNotifications && (
-                  <View style={[styles.notificationBadge, styles.notificationBadgeDark]}>
-                    <Text style={styles.notificationBadgeText}>
-                      {notificationCount > 9 ? '9+' : notificationCount}
+                  <View style={[styles.badge, { backgroundColor: palette.error }]}>
+                    <Text style={styles.badgeText}>
+                      {notificationCount > 99 ? '99+' : notificationCount}
                     </Text>
                   </View>
                 )}
-              </View>
-            </TouchableOpacity>
-          )}
-          <View style={styles.content}>
-            <Text style={[styles.welcomeText, styles.welcomeTextPlaceholder, isDark && styles.welcomeTextPlaceholderDark]}>
-              Welcome to
-            </Text>
-            <View style={styles.familyNameContainer}>
-              <Text style={[styles.familyName, styles.familyNamePlaceholder, isDark && styles.familyNamePlaceholderDark]}>
-                {familyName}'s
-              </Text>
-              <Text style={[styles.familyLabel, styles.familyLabelPlaceholder, isDark && styles.familyLabelPlaceholderDark]}>
-                Family
-              </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.valueRow}>
+            <View style={[styles.iconPill, { backgroundColor: `${palette.primary}18` }]}>
+              <IconSymbol name="house.fill" size={24} color={palette.primary} />
             </View>
+            <Text
+              style={[styles.valueProp, { color: palette.muted }]}
+              numberOfLines={2}
+            >
+              {VALUE_PROP}
+            </Text>
           </View>
         </View>
-      )}
-    </View>
+      </LinearGradient>
+    </AnimatedView>
   );
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
 }
 
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    height: 280,
-    marginBottom: 20,
-  },
-  imageBackground: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'flex-end',
-  },
-  imageStyle: {
-    borderRadius: 0,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 2,
   },
   gradient: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'flex-end',
-    padding: 24,
-    paddingBottom: 32,
-  },
-  placeholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#0a7ea4',
-    justifyContent: 'flex-end',
-    padding: 24,
-    paddingBottom: 32,
-  },
-  placeholderDark: {
-    backgroundColor: '#1C3A4A',
+    borderRadius: radius.xl,
+    overflow: 'hidden',
   },
   content: {
-    width: '100%',
+    padding: spacing.lg,
   },
-  welcomeText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    letterSpacing: 0.5,
-    opacity: 0.95,
-  },
-  welcomeTextPlaceholder: {
-    opacity: 0.9,
-  },
-  welcomeTextPlaceholderDark: {
-    color: '#E6E1E5',
-  },
-  familyNameContainer: {
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.lg,
   },
-  familyName: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-    marginRight: 8,
+  titleBlock: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: spacing.md,
   },
-  familyNamePlaceholder: {
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+  greeting: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.medium,
+    letterSpacing: 0.4,
+    marginBottom: 2,
+    textTransform: 'capitalize',
   },
-  familyNamePlaceholderDark: {
-    color: '#E6E1E5',
-  },
-  familyLabel: {
+  headline: {
+    ...typography.heading,
     fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    lineHeight: 30,
+    letterSpacing: -0.5,
   },
-  familyLabelPlaceholder: {
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-  },
-  familyLabelPlaceholderDark: {
-    color: '#E6E1E5',
-  },
-  notificationButton: {
-    position: 'absolute',
-    top: 60,
-    right: 16,
-    zIndex: 10,
-  },
-  notificationIconContainer: {
-    justifyContent: 'center',
+  bellBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
     alignItems: 'center',
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FF4444',
     justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
-  notificationBadgeDark: {
-    borderColor: '#1C1B1F',
-  },
-  notificationBadgeText: {
-    fontSize: 11,
+  badgeText: {
+    fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
-    textAlign: 'center',
+  },
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  iconPill: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  valueProp: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: typography.fontSizes.sm,
+    lineHeight: typography.lineHeights.sm + 2,
+    fontWeight: typography.fontWeights.regular,
   },
 });
-
