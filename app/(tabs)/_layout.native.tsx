@@ -111,22 +111,17 @@ export default function TabLayout() {
       />
       <Tabs.Screen name="budget" options={{ href: null }} />
       <Tabs.Screen name="calendar" options={{ href: null }} />
-      <Tabs.Screen name="notes" options={{ href: null }} />
       <Tabs.Screen
-        name="tasks"
+        name="notes"
         options={{
-          title: 'Tasks',
+          title: 'Notes',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon
-              name="list.bullet.rectangle"
-              nameFocused="list.bullet.rectangle"
-              color={color}
-              focused={focused}
-            />
+            <TabIcon name="note.text" nameFocused="note.text" color={color} focused={focused} />
           ),
           tabBarButton: HapticTab,
         }}
       />
+      <Tabs.Screen name="tasks" options={{ href: null }} />
       <Tabs.Screen
         name="settings"
         options={{

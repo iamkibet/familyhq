@@ -174,10 +174,10 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   noteItem: {
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   noteTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#111',
     marginBottom: 4,
@@ -186,12 +186,13 @@ const styles = StyleSheet.create({
     color: '#E6E1E5',
   },
   notePreview: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 13,
+    color: '#555',
     marginBottom: 6,
+    lineHeight: 18,
   },
   notePreviewDark: {
-    color: '#938F99',
+    color: '#B0AEB3',
   },
   noteDate: {
     fontSize: 11,

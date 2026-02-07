@@ -83,7 +83,10 @@ const MAPPING: IconMapping = {
   'pencil': 'edit',
   'pencil.fill': 'edit',
   'ellipsis': 'more-horiz',
+  'ellipsis.circle': 'more-vert',
   'ellipsis.circle.fill': 'more-vert',
+  'checklist': 'checklist-rtl',
+  'checklist.checked': 'checklist-rtl',
   'plus': 'add',
   'doc.on.doc.fill': 'content-copy',
   // Charts/Analytics

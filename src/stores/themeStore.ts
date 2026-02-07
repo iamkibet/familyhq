@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as SystemUI from 'expo-system-ui';
-import { Appearance } from 'react-native';
+import { Appearance, Platform } from 'react-native';
+
+const isEdgeToEdge = Platform.OS === 'android' && Constants.expoConfig?.android?.edgeToEdgeEnabled === true;
 
 type ColorScheme = 'light' | 'dark' | 'auto';
 
@@ -49,16 +52,15 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 }));
 
 async function applyTheme(scheme: ColorScheme) {
+  if (isEdgeToEdge) return; // setBackgroundColorAsync not supported with edge-to-edge
   try {
     if (scheme === 'auto') {
-      // Let system decide - use transparent or system default
       await SystemUI.setBackgroundColorAsync('transparent');
     } else {
       const backgroundColor = scheme === 'dark' ? '#1C1B1F' : '#FFFFFF';
       await SystemUI.setBackgroundColorAsync(backgroundColor);
     }
   } catch (error) {
-    // SystemUI might not be available on all platforms
     console.warn('Could not set system UI background:', error);
   }
 }

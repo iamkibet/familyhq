@@ -5,4 +5,5 @@ export const radius = {
   lg: 16,
   xl: 20,
   xxl: 28,
+  full: 9999,
 } as const;

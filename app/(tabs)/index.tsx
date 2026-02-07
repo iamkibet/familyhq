@@ -10,16 +10,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeIn,
   FadeInDown,
+  FadeInRight,
   withTiming,
   useSharedValue,
 } from 'react-native-reanimated';
@@ -38,7 +38,6 @@ import { useReadActivitiesStore } from '@/src/stores/readActivitiesStore';
 import { useMealPlannerStore } from '@/src/stores/mealPlannerStore';
 import {
   formatDateForInput,
-  TimePeriod,
   isDateInRange,
 } from '@/src/utils';
 import { FamilyEvent, BudgetCategory } from '@/src/types';
@@ -46,8 +45,8 @@ import { useThemeScheme } from '@/hooks/use-theme-scheme';
 
 // Components
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { TimePeriodSelector } from '@/src/components/TimePeriodSelector';
 import { DashboardCarousel } from '@/src/components/DashboardCarousel';
+import { AllTimeSpendingCard } from '@/src/components/dashboard/AllTimeSpendingCard';
 import { BudgetCard } from '@/src/components/dashboard/BudgetCard';
 import { ShoppingCard } from '@/src/components/dashboard/ShoppingCard';
 import { TasksCard } from '@/src/components/dashboard/TasksCard';
@@ -64,7 +63,6 @@ import { typography } from '@/src/theme/typography';
 import { radius } from '@/src/theme/radius';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const QUICK_ACTION_GAP = 12;
 const QUICK_ACTION_CARD_WIDTH = (SCREEN_WIDTH - spacing.screenHorizontal * 2 - QUICK_ACTION_GAP) / 2;
@@ -150,7 +148,6 @@ export default function HomeScreen() {
     dueDate: formatDateForInput(new Date()),
   });
 
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('thisMonth');
   const [activityFeedVisible, setActivityFeedVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -264,6 +261,18 @@ export default function HomeScreen() {
     if (percentage >= 80) return '#FF9800';
     return isDark ? '#4FC3F7' : '#0a7ea4';
   };
+
+  const allTimeSpendingStats = useMemo(() => {
+    const fromExpenses = directExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    const fromShopping = allShoppingItems
+      .filter((item) => item.isBought)
+      .reduce((sum, item) => sum + (item.estimatedPrice || 0) * (item.quantity || 0), 0);
+    return {
+      total: fromExpenses + fromShopping,
+      fromExpenses,
+      fromShopping,
+    };
+  }, [directExpenses, allShoppingItems]);
 
   const activeShoppingLists = shoppingLists.filter((list) => !list.completed);
 
@@ -504,7 +513,6 @@ export default function HomeScreen() {
         <Animated.View style={styles.section} entering={FadeInDown.delay(200).duration(600)}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: palette.foreground }]}>Family Dashboard</Text>
-            <TimePeriodSelector selectedPeriod={selectedTimePeriod} onPeriodChange={setSelectedTimePeriod} />
           </View>
           <DashboardCarousel>
             <BudgetCard
@@ -521,6 +529,7 @@ export default function HomeScreen() {
               }}
               getBudgetStatusColor={getBudgetStatusColor}
             />
+            <AllTimeSpendingCard stats={allTimeSpendingStats} />
             <ShoppingCard activeLists={activeShoppingLists} allItems={allShoppingItems} />
             <TasksCard tasks={tasks} />
             <EventsCard events={events} />
@@ -528,44 +537,52 @@ export default function HomeScreen() {
         </Animated.View>
 
         <Animated.View style={styles.section} entering={FadeInDown.delay(300).duration(600)}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: palette.foreground }]}>Quick Actions</Text>
+  <View style={styles.sectionHeader}>
+    <Text style={[styles.sectionTitle, { color: palette.foreground }]}>Quick Actions</Text>
+  </View>
+  
+  <View style={styles.quickActionsGrid}>
+    {quickActions.map((action, index) => (
+      <AnimatedTouchableOpacity
+        key={action.id}
+        style={[
+          styles.quickActionCard,
+          { 
+            backgroundColor: palette.surface,
+            borderColor: palette.border,
+            shadowColor: isDark ? '#000' : palette.primary,
+          }
+        ]}
+        onPress={action.onPress}
+        activeOpacity={0.7}
+        entering={FadeInRight.delay(300 + index * 100).duration(400)}
+      >
+        <LinearGradient
+          colors={isDark 
+            ? [`${action.color}20`, `${action.color}10`]
+            : [`${action.color}15`, `${action.color}08`]
+          }
+          style={styles.quickActionGradient}
+        >
+          <View style={styles.quickActionIconWrap}>
+            <IconSymbol 
+              name={action.icon} 
+              size={20} 
+              color={action.color} 
+            />
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickActionsScrollContent}
-            snapToInterval={QUICK_ACTION_CARD_WIDTH + QUICK_ACTION_GAP}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            scrollEventThrottle={16}
-          >
-            {quickActions.map((action, index) => (
-              <TouchableOpacity
-                key={action.id}
-                style={[
-                  styles.quickActionCard,
-                  {
-                    backgroundColor: palette.surface,
-                    borderColor: palette.border,
-                    marginLeft: index === 0 ? 0 : QUICK_ACTION_GAP,
-                    width: QUICK_ACTION_CARD_WIDTH,
-                  },
-                  isDark && styles.quickActionCardShadowDark,
-                ]}
-                onPress={action.onPress}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.quickActionIconWrap, { backgroundColor: `${action.color}18` }]}>
-                  <IconSymbol name={action.icon} size={26} color={action.color} />
-                </View>
-                <Text style={[styles.quickActionLabel, { color: palette.foreground }]} numberOfLines={1}>
-                  {action.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </Animated.View>
+        </LinearGradient>
+        
+        <View style={styles.quickActionContent}>
+          <Text style={[styles.quickActionLabel, { color: palette.foreground }]}>
+            {action.label}
+          </Text>
+          <View style={[styles.quickActionIndicator, { backgroundColor: action.color }]} />
+        </View>
+      </AnimatedTouchableOpacity>
+    ))}
+  </View>
+</Animated.View>
 
         <Animated.View style={styles.section} entering={FadeInDown.delay(400).duration(600)}>
           <View style={styles.sectionHeader}>
@@ -588,23 +605,6 @@ export default function HomeScreen() {
         </Animated.View>
       </Animated.ScrollView>
 
-      {family && (
-        <AnimatedTouchableOpacity
-          style={[styles.fab, { backgroundColor: palette.primary }]}
-          onPress={() => {
-            Alert.alert('Add New', 'What would you like to add?', [
-              { text: 'Shopping List', onPress: () => router.push('/(tabs)/shopping') },
-              { text: 'Task', onPress: openAddTaskModal },
-              { text: 'Event', onPress: openAddEventModal },
-              { text: 'Cancel', style: 'cancel' },
-            ]);
-          }}
-          activeOpacity={0.8}
-          entering={FadeIn.delay(800).duration(600)}
-        >
-          <IconSymbol name="plus" size={24} color="#FFFFFF" />
-        </AnimatedTouchableOpacity>
-      )}
 
       <ActivityFeed
         visible={activityFeedVisible}
@@ -827,36 +827,60 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingRight: spacing.screenHorizontal,
   },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
   quickActionCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
+    width: '48%',
+    marginBottom: spacing.md,
     borderRadius: radius.lg,
     borderWidth: 1,
-    minHeight: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 3,
   },
   quickActionCardShadowDark: {
     shadowOpacity: 0.15,
     elevation: 4,
   },
-  quickActionIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: radius.lg,
+  quickActionGradient: {
+    padding: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
+  },
+  quickActionIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  quickActionContent: {
+    padding: spacing.sm,
+    paddingTop: spacing.xs,
+    alignItems: 'center',
   },
   quickActionLabel: {
-    fontSize: typography.fontSizes.md,
+    fontSize: typography.fontSizes.xs,
     fontWeight: typography.fontWeights.semibold,
+    marginBottom: spacing.xs,
     textAlign: 'center',
+  },
+  quickActionIndicator: {
+    width: 20,
+    height: 2.5,
+    borderRadius: 1.25,
+    marginTop: spacing.xs,
   },
   quoteCard: {
     padding: spacing.xl,
@@ -875,21 +899,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: spacing.md,
     alignSelf: 'flex-end',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: spacing.xxl,
-    right: spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: radius.xxl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
   },
   modalOverlay: {
     flex: 1,

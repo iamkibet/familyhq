@@ -16,6 +16,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -55,6 +56,7 @@ export default function ShoppingListScreen() {
   const [listModalVisible, setListModalVisible] = useState(false);
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [directExpenseModalVisible, setDirectExpenseModalVisible] = useState(false);
+  const [addOptionsModalVisible, setAddOptionsModalVisible] = useState(false);
   const [editingList, setEditingList] = useState<ShoppingList | null>(null);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [listFormData, setListFormData] = useState({ name: '' });
@@ -176,53 +178,14 @@ export default function ShoppingListScreen() {
   };
 
   const handleMainFabPress = () => {
-    if (!selectedListId) {
-      // In lists overview - show options to create list or add expense
-      Alert.alert(
-        'Add',
-        'What would you like to add?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'New List', 
-            onPress: () => {
-              console.log('New List pressed');
-              openAddListModal();
-            }
-          },
-          { 
-            text: 'Direct Expense', 
-            onPress: () => {
-              console.log('Direct Expense pressed');
-              openAddDirectExpenseModal();
-            }
-          },
-        ]
-      );
-    } else {
-      // In list view - show options to add item or add expense
-      Alert.alert(
-        'Add',
-        'What would you like to add?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Shopping Item', 
-            onPress: () => {
-              console.log('Shopping Item pressed');
-              openAddItemModal();
-            }
-          },
-          { 
-            text: 'Direct Expense', 
-            onPress: () => {
-              console.log('Direct Expense pressed');
-              openAddDirectExpenseModal();
-            }
-          },
-        ]
-      );
-    }
+    setAddOptionsModalVisible(true);
+  };
+
+  const closeAddOptionsModal = () => setAddOptionsModalVisible(false);
+
+  const handleAddOption = (action: () => void) => {
+    closeAddOptionsModal();
+    action();
   };
 
   const handleSaveList = async () => {
@@ -507,12 +470,102 @@ export default function ShoppingListScreen() {
         )}
 
         {/* FAB */}
-        <TouchableOpacity
-          style={[styles.fab, isDark && styles.fabDark]}
+        <Pressable
+          style={({ pressed }) => [
+            styles.fab,
+            isDark && styles.fabDark,
+            pressed && styles.fabPressed,
+          ]}
           onPress={handleMainFabPress}
-          activeOpacity={0.8}>
-          <IconSymbol name="plus" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
+          android_ripple={{ color: 'rgba(255, 255, 255, 0.4)' }}
+        >
+          <View style={styles.fabInner}>
+            <IconSymbol name="plus" size={26} color="#FFFFFF" />
+          </View>
+        </Pressable>
+
+        {/* Add options modal — What would you like to add? */}
+        <Modal
+          visible={addOptionsModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeAddOptionsModal}
+        >
+          <TouchableOpacity
+            style={styles.addOptionsOverlay}
+            activeOpacity={1}
+            onPress={closeAddOptionsModal}
+          >
+            <View
+              style={[styles.addOptionsSheet, isDark && styles.addOptionsSheetDark]}
+              onStartShouldSetResponder={() => true}
+            >
+              <Text style={[styles.addOptionsTitle, isDark && styles.addOptionsTitleDark]}>
+                What would you like to add?
+              </Text>
+
+              {!selectedListId ? (
+                <>
+                  <TouchableOpacity
+                    style={[styles.addOptionRow, isDark && styles.addOptionRowDark]}
+                    onPress={() => handleAddOption(openAddListModal)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.addOptionIconWrap, isDark && styles.addOptionIconWrapDark]}>
+                      <IconSymbol name="list.bullet.rectangle.fill" size={22} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                    </View>
+                    <Text style={[styles.addOptionLabel, isDark && styles.addOptionLabelDark]}>New List</Text>
+                    <IconSymbol name="chevron.right" size={18} color={isDark ? '#666' : '#999'} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.addOptionRow, isDark && styles.addOptionRowDark]}
+                    onPress={() => handleAddOption(openAddDirectExpenseModal)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.addOptionIconWrap, isDark && styles.addOptionIconWrapDark]}>
+                      <IconSymbol name="dollarsign.circle.fill" size={22} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                    </View>
+                    <Text style={[styles.addOptionLabel, isDark && styles.addOptionLabelDark]}>Direct expense</Text>
+                    <IconSymbol name="chevron.right" size={18} color={isDark ? '#666' : '#999'} />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.addOptionRow, isDark && styles.addOptionRowDark]}
+                    onPress={() => handleAddOption(openAddItemModal)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.addOptionIconWrap, isDark && styles.addOptionIconWrapDark]}>
+                      <IconSymbol name="cart.fill" size={22} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                    </View>
+                    <Text style={[styles.addOptionLabel, isDark && styles.addOptionLabelDark]}>Shopping item</Text>
+                    <IconSymbol name="chevron.right" size={18} color={isDark ? '#666' : '#999'} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.addOptionRow, isDark && styles.addOptionRowDark]}
+                    onPress={() => handleAddOption(openAddDirectExpenseModal)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.addOptionIconWrap, isDark && styles.addOptionIconWrapDark]}>
+                      <IconSymbol name="dollarsign.circle.fill" size={22} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                    </View>
+                    <Text style={[styles.addOptionLabel, isDark && styles.addOptionLabelDark]}>Direct expense</Text>
+                    <IconSymbol name="chevron.right" size={18} color={isDark ? '#666' : '#999'} />
+                  </TouchableOpacity>
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[styles.addOptionsCancel, isDark && styles.addOptionsCancelDark]}
+                onPress={closeAddOptionsModal}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.addOptionsCancelText, isDark && styles.addOptionsCancelTextDark]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* List Modal */}
         <Modal
@@ -724,12 +777,19 @@ export default function ShoppingListScreen() {
       )}
 
       {/* FAB */}
-      <TouchableOpacity
-        style={[styles.fab, isDark && styles.fabDark]}
-        onPress={handleMainFabPress}
-        activeOpacity={0.8}>
-        <IconSymbol name="plus" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
+        <Pressable
+          style={({ pressed }) => [
+            styles.fab,
+            isDark && styles.fabDark,
+            pressed && styles.fabPressed,
+          ]}
+          onPress={handleMainFabPress}
+          android_ripple={{ color: 'rgba(255, 255, 255, 0.4)' }}
+        >
+        <View style={styles.fabInner}>
+          <IconSymbol name="plus" size={26} color="#FFFFFF" />
+        </View>
+      </Pressable>
 
       {/* Item Modal */}
       <Modal
@@ -1119,14 +1179,97 @@ const styles = StyleSheet.create({
     backgroundColor: '#0a7ea4',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
   },
   fabDark: {
     backgroundColor: '#4FC3F7',
+  },
+  fabPressed: {
+    opacity: Platform.OS === 'ios' ? 0.85 : 1,
+  },
+  fabInner: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  addOptionsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+    padding: 20,
+    paddingBottom: 40,
+  },
+  addOptionsSheet: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    paddingBottom: 12,
+  },
+  addOptionsSheetDark: {
+    backgroundColor: '#2C2C2C',
+  },
+  addOptionsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  addOptionsTitleDark: {
+    color: '#E6E1E5',
+  },
+  addOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+  },
+  addOptionRowDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  addOptionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(10, 126, 164, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  addOptionIconWrapDark: {
+    backgroundColor: 'rgba(79, 195, 247, 0.2)',
+  },
+  addOptionLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111',
+  },
+  addOptionLabelDark: {
+    color: '#E6E1E5',
+  },
+  addOptionsCancel: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  addOptionsCancelDark: {},
+  addOptionsCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  addOptionsCancelTextDark: {
+    color: '#938F99',
   },
   modalOverlay: {
     flex: 1,
