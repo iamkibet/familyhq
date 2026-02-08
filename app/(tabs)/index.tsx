@@ -452,7 +452,10 @@ export default function HomeScreen() {
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: palette.background }]}
+      edges={['top', 'left', 'right']}
+    >
       <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={[

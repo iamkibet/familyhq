@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { getWebTheme, WebThemeShape } from './WebTheme';
-import { useThemeScheme } from '@/hooks/use-theme-scheme';
+import { useThemeScheme } from "@/hooks/use-theme-scheme";
+import React from "react";
+import { StyleSheet, View } from "react-native";
+import { getWebTheme, WebThemeShape } from "./WebTheme";
 
 export function WebPage({ children }: { children: React.ReactNode }) {
   const colorScheme = useThemeScheme();
@@ -27,13 +27,13 @@ export function WebCard({ children }: { children: React.ReactNode }) {
 function createStyles(theme: WebThemeShape) {
   return StyleSheet.create({
     page: {
-      minHeight: '100%',
+      minHeight: "100%",
       backgroundColor: theme.colors.bg,
     },
     container: {
-      width: '100%',
+      width: "100%",
       maxWidth: 1120,
-      alignSelf: 'center',
+      alignSelf: "center",
       paddingHorizontal: 20,
       paddingVertical: 28,
     },
@@ -47,5 +47,3 @@ function createStyles(theme: WebThemeShape) {
     },
   });
 }
-
-
