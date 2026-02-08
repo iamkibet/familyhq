@@ -72,6 +72,7 @@ export default function ShoppingListScreen() {
     budgetCategoryName: budgetCategories[0]?.name || '',
   });
   const [isAddingExpense, setIsAddingExpense] = useState(false);
+  const [isSavingItem, setIsSavingItem] = useState(false);
 
   // Subscribe to lists and expenses when family is available
   useEffect(() => {
@@ -178,7 +179,12 @@ export default function ShoppingListScreen() {
   };
 
   const handleMainFabPress = () => {
-    setAddOptionsModalVisible(true);
+    // When inside a list, plus adds a shopping item directly for faster UX
+    if (selectedListId) {
+      openAddItemModal();
+    } else {
+      setAddOptionsModalVisible(true);
+    }
   };
 
   const closeAddOptionsModal = () => setAddOptionsModalVisible(false);
@@ -203,10 +209,14 @@ export default function ShoppingListScreen() {
       if (editingList) {
         await updateList(family.id, editingList.id, { name: listFormData.name.trim() });
       } else {
-        await createList(family.id, {
+        const newListId = await createList(family.id, {
           name: listFormData.name.trim(),
           createdBy: userData.id,
         });
+        // Select the new list so user can add items immediately via the plus button
+        if (newListId) {
+          selectList(newListId);
+        }
       }
       setListModalVisible(false);
       resetListForm();
@@ -231,6 +241,7 @@ export default function ShoppingListScreen() {
       return;
     }
 
+    setIsSavingItem(true);
     try {
       const itemData = {
         name: itemFormData.name.trim(),
@@ -250,6 +261,8 @@ export default function ShoppingListScreen() {
       resetItemForm();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to save item');
+    } finally {
+      setIsSavingItem(false);
     }
   };
 
@@ -791,12 +804,64 @@ export default function ShoppingListScreen() {
         </View>
       </Pressable>
 
+      {/* Add options modal — when viewing a list, plus opens this then "Shopping item" */}
+        <Modal
+          visible={addOptionsModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeAddOptionsModal}
+        >
+          <TouchableOpacity
+            style={styles.addOptionsOverlay}
+            activeOpacity={1}
+            onPress={closeAddOptionsModal}
+          >
+            <View
+              style={[styles.addOptionsSheet, isDark && styles.addOptionsSheetDark]}
+              onStartShouldSetResponder={() => true}
+            >
+              <Text style={[styles.addOptionsTitle, isDark && styles.addOptionsTitleDark]}>
+                What would you like to add?
+              </Text>
+              <TouchableOpacity
+                style={[styles.addOptionRow, isDark && styles.addOptionRowDark]}
+                onPress={() => handleAddOption(openAddItemModal)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.addOptionIconWrap, isDark && styles.addOptionIconWrapDark]}>
+                  <IconSymbol name="cart.fill" size={22} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                </View>
+                <Text style={[styles.addOptionLabel, isDark && styles.addOptionLabelDark]}>Shopping item</Text>
+                <IconSymbol name="chevron.right" size={18} color={isDark ? '#666' : '#999'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addOptionRow, isDark && styles.addOptionRowDark]}
+                onPress={() => handleAddOption(openAddDirectExpenseModal)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.addOptionIconWrap, isDark && styles.addOptionIconWrapDark]}>
+                  <IconSymbol name="dollarsign.circle.fill" size={22} color={isDark ? '#4FC3F7' : '#0a7ea4'} />
+                </View>
+                <Text style={[styles.addOptionLabel, isDark && styles.addOptionLabelDark]}>Direct expense</Text>
+                <IconSymbol name="chevron.right" size={18} color={isDark ? '#666' : '#999'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addOptionsCancel, isDark && styles.addOptionsCancelDark]}
+                onPress={closeAddOptionsModal}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.addOptionsCancelText, isDark && styles.addOptionsCancelTextDark]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
       {/* Item Modal */}
       <Modal
         visible={itemModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setItemModalVisible(false)}>
+        onRequestClose={() => !isSavingItem && setItemModalVisible(false)}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}>
@@ -875,13 +940,24 @@ export default function ShoppingListScreen() {
                 onPress={() => {
                   setItemModalVisible(false);
                   resetItemForm();
-                }}>
+                }}
+                disabled={isSavingItem}>
                 <Text style={[styles.modalButtonText, styles.modalButtonTextCancel]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave, isDark && styles.modalButtonSaveDark]}
-                onPress={handleSaveItem}>
-                <Text style={styles.modalButtonText}>{editingItem ? 'Save' : 'Add'}</Text>
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonSave,
+                  isDark && styles.modalButtonSaveDark,
+                  isSavingItem && styles.modalButtonDisabled,
+                ]}
+                onPress={handleSaveItem}
+                disabled={isSavingItem}>
+                {isSavingItem ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalButtonText}>{editingItem ? 'Save' : 'Add'}</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -1395,6 +1471,9 @@ const styles = StyleSheet.create({
   },
   modalButtonSaveDark: {
     backgroundColor: '#4FC3F7',
+  },
+  modalButtonDisabled: {
+    opacity: 0.7,
   },
   modalButtonText: {
     fontSize: 16,

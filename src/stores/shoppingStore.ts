@@ -19,7 +19,7 @@ interface ShoppingState {
 
   // List actions
   subscribeToLists: (familyId: string) => void;
-  createList: (familyId: string, list: Omit<ShoppingList, 'id' | 'createdAt' | 'familyId'>) => Promise<void>;
+  createList: (familyId: string, list: Omit<ShoppingList, 'id' | 'createdAt' | 'familyId'>) => Promise<string>;
   updateList: (familyId: string, listId: string, updates: Partial<Omit<ShoppingList, 'id' | 'createdAt' | 'familyId' | 'createdBy'>>) => Promise<void>;
   deleteList: (familyId: string, listId: string) => Promise<void>;
   selectList: (listId: string | null) => void;
@@ -73,12 +73,13 @@ export const useShoppingStore = create<ShoppingState>((set, get) => ({
     set({ listsUnsubscribe: unsubscribe });
   },
 
-  // Create a new shopping list
+  // Create a new shopping list (returns the new list id so caller can select it)
   createList: async (familyId: string, list) => {
     set({ listsLoading: true, error: null });
     try {
-      await shoppingService.createShoppingList(familyId, list);
+      const newListId = await shoppingService.createShoppingList(familyId, list);
       // Real-time subscription will update lists automatically
+      return newListId;
     } catch (error: any) {
       set({ error: error.message || 'Failed to create list', listsLoading: false });
       throw error;
